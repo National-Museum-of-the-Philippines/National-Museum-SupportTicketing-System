@@ -73,7 +73,7 @@ class Conversation extends Model
             return $this->participants->map(fn (User $u) => (string) $u->id)->all();
         }
 
-        return $this->participants()->pluck('users.id')->map(fn ($id) => (string) $id)->all();
+        return $this->participants()->allRelatedIds()->map(fn ($id) => (string) $id)->values()->all();
     }
 
     /**

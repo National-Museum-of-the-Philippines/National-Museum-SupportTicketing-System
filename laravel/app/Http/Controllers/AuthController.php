@@ -38,11 +38,12 @@ class AuthController extends Controller
         }
 
         $user = $this->resolveTicketingUser($org);
-        $this->pamana->syncTicketingUser($user);
+        $employee = $this->pamana->findForTicketingUser($user);
+        $this->pamana->syncTicketingUser($user, $employee);
 
         return response()->json([
             'token' => $this->jwt->sign($user),
-            'user' => $this->pamana->enrichPublicUser($user->fresh() ?? $user),
+            'user' => $this->pamana->enrichPublicUser($user, $employee),
         ]);
     }
 
@@ -77,8 +78,8 @@ class AuthController extends Controller
             $profile = [
                 'name' => $employee['name'],
                 'email' => $profileEmail,
-                'division' => $employee['division'],
-                'designation' => $employee['designation'],
+                'division' => $employee['division'] !== '' ? $employee['division'] : (string) ($user->division ?? ''),
+                'designation' => $employee['designation'] !== '' ? $employee['designation'] : (string) ($user->designation ?? ''),
                 'firstName' => $employee['firstName'],
                 'middleName' => $employee['middleName'],
                 'lastName' => $employee['lastName'],

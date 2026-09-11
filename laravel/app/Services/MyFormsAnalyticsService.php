@@ -70,6 +70,13 @@ class MyFormsAnalyticsService
             [...$formIds, $rangeStart],
         );
 
+        $perFormMonthlyRows = DB::select(
+            "SELECT form_id AS id, YEAR(created_at) AS year, MONTH(created_at) AS month, COUNT(*) AS count
+             FROM tickets WHERE {$formMatch} AND created_at >= ?
+             GROUP BY form_id, YEAR(created_at), MONTH(created_at)",
+            [...$formIds, $rangeStart],
+        );
+
         $thisMonthDivCount = (int) DB::selectOne(
             "SELECT COUNT(*) AS count FROM (
                SELECT COALESCE(NULLIF(TRIM(division), ''), 'Unspecified') AS d
@@ -127,6 +134,13 @@ class MyFormsAnalyticsService
             'count' => $monthlyMap[$b['monthKey']] ?? 0,
         ], $buckets);
 
+        $perFormMonthlyMap = [];
+        foreach ($perFormMonthlyRows as $row) {
+            $fid = (string) $row->id;
+            $key = $row->year.'-'.str_pad((string) $row->month, 2, '0', STR_PAD_LEFT);
+            $perFormMonthlyMap[$fid][$key] = (int) $row->count;
+        }
+
         $topService = $byService[0] ?? null;
         $topDivision = $byDivision[0] ?? null;
         $daysInMonth = max(1, (int) $now->day);
@@ -168,18 +182,28 @@ class MyFormsAnalyticsService
                 'averagePerDay' => $averagePerDay,
             ],
             'topDivisions' => $topDivisions,
-            'forms' => $forms->map(fn (Form $f) => [
-                '_id' => (string) $f->id,
-                'title' => $f->title,
-                'refNumber' => $f->ref_number,
-                'status' => $f->status,
-                'requestCount' => $ticketsByForm[(string) $f->id] ?? 0,
-                'lastSubmissionAt' => isset($lastSubmissions[(string) $f->id])
-                    ? optional($lastSubmissions[(string) $f->id])?->toISOString()
-                    : null,
-                'updatedAt' => optional($f->updated_at)?->toISOString(),
-                'reviewRemarks' => $f->review_remarks ?: null,
-            ])->all(),
+            'forms' => $forms->map(function (Form $f) use ($ticketsByForm, $lastSubmissions, $buckets, $perFormMonthlyMap) {
+                $fid = (string) $f->id;
+                $formMonthMap = $perFormMonthlyMap[$fid] ?? [];
+
+                return [
+                    '_id' => $fid,
+                    'title' => $f->title,
+                    'refNumber' => $f->ref_number,
+                    'status' => $f->status,
+                    'requestCount' => $ticketsByForm[$fid] ?? 0,
+                    'lastSubmissionAt' => isset($lastSubmissions[$fid])
+                        ? optional($lastSubmissions[$fid])?->toISOString()
+                        : null,
+                    'updatedAt' => optional($f->updated_at)?->toISOString(),
+                    'reviewRemarks' => $f->review_remarks ?: null,
+                    'monthlyTrend' => array_map(fn ($b) => [
+                        'month' => $b['month'],
+                        'monthKey' => $b['monthKey'],
+                        'count' => $formMonthMap[$b['monthKey']] ?? 0,
+                    ], $buckets),
+                ];
+            })->all(),
         ];
     }
 
@@ -227,6 +251,11 @@ class MyFormsAnalyticsService
                 'lastSubmissionAt' => null,
                 'updatedAt' => optional($f->updated_at)?->toISOString(),
                 'reviewRemarks' => $f->review_remarks ?: null,
+                'monthlyTrend' => array_map(fn ($b) => [
+                    'month' => $b['month'],
+                    'monthKey' => $b['monthKey'],
+                    'count' => 0,
+                ], $buckets),
             ])->all(),
         ];
     }

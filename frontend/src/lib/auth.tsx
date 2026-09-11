@@ -59,10 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthLoading, setIsAuthLoading] = useState(() => Boolean(activeSlot));
   useEffect(() => {
     let cancelled = false;
-    let syncGen = 0;
 
-    const sync = (slot: PortalSlot | null) => {
-      const gen = ++syncGen;
+    const syncFromLocal = (slot: PortalSlot | null) => {
       const all = readSessionsMap();
       if (!cancelled) setSessions(all);
 
@@ -76,67 +74,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const saved = getSession(slot);
-      if (!saved?.token) {
-        if (!cancelled) {
-          setUser(null);
-          setSessionReady(true);
-          setIsAuthLoading(false);
-        }
-        return;
-      }
-
-      // Already have a local session — keep the UI mounted and refresh /me in the background.
-      // Flipping isAuthLoading/sessionReady here remounts forms and wipes in-progress answers.
-      const hasLocalUser = Boolean(saved.user);
       if (!cancelled) {
-        if (hasLocalUser) {
-          setUser(saved.user);
-          setSessionReady(true);
-          setIsAuthLoading(false);
-        } else {
-          setIsAuthLoading(true);
-          setSessionReady(false);
-        }
+        setUser(saved?.user ?? null);
+        setSessionReady(true);
+        setIsAuthLoading(false);
       }
-
-      api
-        .me(slot)
-        .then(({ user: u }) => {
-          if (cancelled || gen !== syncGen) return;
-          // Silent write — notifying would re-enter sync and spam /auth/me.
-          setSession(slot, { token: saved.token, user: u }, { notify: false });
-          setSessions(readSessionsMap());
-          setUser(u);
-          setSessionReady(true);
-        })
-        .catch((err) => {
-          if (cancelled || gen !== syncGen) return;
-          if (err instanceof ApiError && err.status === 401) {
-            setSession(slot, null, { notify: false });
-            setSessions(readSessionsMap());
-            setUser(null);
-          } else if (!hasLocalUser) {
-            setUser(saved.user);
-          }
-          setSessionReady(true);
-        })
-        .finally(() => {
-          if (!cancelled && gen === syncGen) setIsAuthLoading(false);
-        });
+      // Intentionally no background /auth/me — that remounted portals and wiped
+      // in-progress forms. Session is trusted until login, logout, or hard refresh.
     };
 
     const onAuthChanged = () => {
       const slot = pathToSlot(window.location.pathname);
-      // Do not invalidateQueries here — that remounts/refetches pages and wipes
-      // in-progress Form Builder / Submit Request answers while the user is typing.
-      sync(slot);
+      syncFromLocal(slot);
     };
 
     const onStorage = (e: StorageEvent) => {
       if (e.key === SESSIONS_STORAGE_KEY) onAuthChanged();
     };
 
-    sync(activeSlot);
+    syncFromLocal(activeSlot);
     window.addEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
     window.addEventListener("storage", onStorage);
     return () => {

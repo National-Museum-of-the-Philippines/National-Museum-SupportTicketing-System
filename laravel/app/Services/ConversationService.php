@@ -108,7 +108,7 @@ class ConversationService
         }
 
         $assignedTickets = Ticket::query()
-            ->whereHas('assignees', fn ($q) => $q->where('users.id', $user->id))
+            ->whereHas('assignees', fn ($q) => $q->where('users_.id', $user->id))
             ->where('status', '!=', 'rejected')
             ->get();
         foreach ($assignedTickets as $t) {
@@ -119,7 +119,7 @@ class ConversationService
             ->with('participants')
             ->where(function ($q) use ($user) {
                 $q->where('is_global', true)
-                    ->orWhereHas('participants', fn ($p) => $p->where('users.id', $user->id));
+                    ->orWhereHas('participants', fn ($p) => $p->where('users_.id', $user->id));
             })
             ->orderByDesc('is_global')
             ->orderByDesc('last_message_at')

@@ -9,6 +9,7 @@ import { usePokeNotifications } from "@/hooks/use-poke-notifications";
 import { api } from "@/lib/api/client";
 import { ensurePortalRole } from "@/lib/portal-guard";
 import { clientTicketNotifications } from "@/lib/notifications";
+import { useLiveNotifications } from "@/lib/live-notifications";
 import {
   CLIENT_DASHBOARD,
   CLIENT_FEEDBACK,
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/client")({
 
 function ClientLayout() {
   useMessageRealtime("client");
+  const liveNotifications = useLiveNotifications("client");
   const pokeNotifications = usePokeNotifications("client");
   const messageNotifications = useMessageNotifications("client");
   const { data: tickets, isLoading: notificationsLoading } = useQuery({
@@ -40,8 +42,8 @@ function ClientLayout() {
   });
 
   const notifications = useMemo(
-    () => [...messageNotifications, ...pokeNotifications, ...clientTicketNotifications(tickets?.items ?? [])],
-    [messageNotifications, pokeNotifications, tickets?.items],
+    () => [...liveNotifications, ...messageNotifications, ...pokeNotifications, ...clientTicketNotifications(tickets?.items ?? [])],
+    [liveNotifications, messageNotifications, pokeNotifications, tickets?.items],
   );
   const actionCount = notifications.length;
   const feedbackCount = countTicketsNeedingFeedback(tickets?.items ?? []);

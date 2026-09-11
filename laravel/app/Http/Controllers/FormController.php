@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Services\FormService;
 use App\Services\MyFormsAnalyticsService;
+use App\Services\PamanaEmployeeService;
 use App\Services\PdfDocumentService;
 use App\Support\ApiException;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +18,7 @@ class FormController extends Controller
         private FormService $forms,
         private MyFormsAnalyticsService $analytics,
         private PdfDocumentService $pdfs,
+        private PamanaEmployeeService $pamana,
     ) {}
 
     public function published(): JsonResponse
@@ -48,6 +51,16 @@ class FormController extends Controller
     public function mine(Request $request): JsonResponse
     {
         return response()->json(['items' => $this->forms->listMyForms($this->authUser($request))]);
+    }
+
+    public function actionOfficerStaff(Request $request): JsonResponse
+    {
+        $user = User::query()->find($this->authUser($request)->id);
+        if (! $user) {
+            throw new ApiException(404, 'User not found');
+        }
+
+        return response()->json($this->pamana->listActionOfficersForCreator($user));
     }
 
     public function show(string $id): JsonResponse

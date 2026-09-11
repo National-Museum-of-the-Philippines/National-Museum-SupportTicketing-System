@@ -55,7 +55,7 @@ export function ClientFormFileViewerDialog({
     queryKey: ["requester-profile", "client-preview", clientUserId],
     queryFn: () => api.requesterProfile("client"),
     enabled: open && Boolean(clientUserId),
-    staleTime: 5 * 60_000,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 
   const form = data?.form;
@@ -142,6 +142,7 @@ export function ClientFormFileViewerDialog({
           form={form}
           enabled={open}
           answers={previewAnswers}
+          showMappedPlaceholders
           emptyMessage="This form has no uploaded file."
         />
       )}

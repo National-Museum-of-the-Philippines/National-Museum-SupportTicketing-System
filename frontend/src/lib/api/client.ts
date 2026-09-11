@@ -112,6 +112,13 @@ export const api = {
     apiFetch<{ form: FormRecord }>("/api/forms", { method: "POST", body: JSON.stringify(body) }),
   myForms: () => apiFetch<{ items: FormRecord[] }>("/api/forms/mine"),
   myFormsAnalytics: () => apiFetch<MyFormsAnalytics>("/api/forms/mine/analytics"),
+  getForm: (id: string) => apiFetch<{ form: FormRecord }>(`/api/forms/${id}`),
+  listActionOfficerStaff: () =>
+    apiFetch<{
+      users: Array<{ _id: string; name: string; email: string; division: string }>;
+      sectionId: string;
+      sectionName: string;
+    }>("/api/forms/action-officer-staff", undefined, "admin"),
   submitFormForReview: (id: string) =>
     apiFetch<{ form: FormRecord }>(`/api/forms/${id}/submit-for-review`, { method: "POST" }),
   createAndSubmitForm: (body: object) =>
@@ -224,6 +231,15 @@ export const api = {
       users: Array<{ _id: string; name: string; email: string; division: string }>;
       division: string;
     }>(`/api/tickets/assignees?ticketId=${encodeURIComponent(ticketId)}`, undefined, "admin"),
+  listAssigneesByDivision: (division: string) =>
+    apiFetch<{
+      users: Array<{ _id: string; name: string; email: string; division: string }>;
+      division: string;
+    }>(
+      `/api/tickets/assignees?division=${encodeURIComponent(division)}`,
+      undefined,
+      "admin",
+    ),
 
   superAdminOverview: () =>
     apiFetch<{

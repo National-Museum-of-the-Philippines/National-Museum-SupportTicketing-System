@@ -1,10 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   ArrowUpRight,
   CalendarDays,
+  Eye,
   FileText,
-  MoreHorizontal,
   PieChart as PieIcon,
   Star,
   Tag,
@@ -25,6 +26,7 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
+import { AdminFormViewerDialog } from "@/components/admin/AdminFormViewerDialog";
 import {
   ActionLink,
   EmptyState,
@@ -243,6 +245,12 @@ function MonthlyTrend({ data }: { data: MyFormsAnalytics["monthlyTrend"] }) {
 
 export function MyFormsPage() {
   const qc = useQueryClient();
+  const [viewForm, setViewForm] = useState<{
+    id: string;
+    title: string;
+    refNumber: string;
+  } | null>(null);
+  const [chartFormId, setChartFormId] = useState<string | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["my-forms-analytics"],
     queryFn: () => api.myFormsAnalytics(),
@@ -448,6 +456,8 @@ export function MyFormsPage() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {forms.map((f) => {
               const canSubmit = f.status === "draft" || f.status === "disapproved";
+              const showChart = chartFormId === f._id;
+              const trend = f.monthlyTrend ?? [];
               return (
                 <article
                   key={f._id}
@@ -473,6 +483,22 @@ export function MyFormsPage() {
                     </p>
                   </div>
 
+                  {showChart ? (
+                    <div className="mt-3 h-28 rounded-lg border border-slate-200 bg-white p-2">
+                      <p className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                        Requests (12 mo)
+                      </p>
+                      <ResponsiveContainer width="100%" height="85%">
+                        <BarChart data={trend} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+                          <XAxis dataKey="month" tick={{ fontSize: 9 }} interval={2} />
+                          <YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} />
+                          <Tooltip />
+                          <Bar dataKey="count" fill={MAROON} radius={[3, 3, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : null}
+
                   {f.status === "disapproved" && f.reviewRemarks ? (
                     <p className="mt-3 rounded-md border border-destructive/20 bg-destructive/5 px-2.5 py-2 text-xs leading-relaxed text-destructive">
                       {f.reviewRemarks}
@@ -490,20 +516,34 @@ export function MyFormsPage() {
                         {f.status === "disapproved" ? "Resubmit" : "Send to Records"}
                       </Button>
                     ) : (
-                      <Link
-                        to="/admin/forms"
-                        className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        onClick={() =>
+                          setViewForm({
+                            id: f._id,
+                            title: f.title,
+                            refNumber: f.refNumber,
+                          })
+                        }
                       >
+                        <Eye className="mr-1.5 h-3.5 w-3.5" />
                         View
-                      </Link>
+                      </Button>
                     )}
-                    <button
+                    <Button
                       type="button"
-                      className="ml-auto rounded-md p-1.5 text-slate-400 hover:bg-white hover:text-slate-600"
-                      aria-label="More"
+                      size="sm"
+                      variant="ghost"
+                      className="ml-auto h-8 text-slate-500"
+                      onClick={() => setChartFormId(showChart ? null : f._id)}
+                      aria-label={showChart ? "Hide chart" : "Show chart"}
                     >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
+                      <PieIcon className="mr-1.5 h-3.5 w-3.5" />
+                      {showChart ? "Hide chart" : "Chart"}
+                    </Button>
                   </div>
                 </article>
               );
@@ -511,6 +551,16 @@ export function MyFormsPage() {
           </div>
         )}
       </section>
+
+      <AdminFormViewerDialog
+        formId={viewForm?.id ?? null}
+        formTitle={viewForm?.title}
+        refNumber={viewForm?.refNumber}
+        open={Boolean(viewForm)}
+        onOpenChange={(open) => {
+          if (!open) setViewForm(null);
+        }}
+      />
     </div>
   );
 }

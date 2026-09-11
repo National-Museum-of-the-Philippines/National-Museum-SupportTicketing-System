@@ -49,6 +49,26 @@ class RealtimeService
         ]);
     }
 
+    /**
+     * Bell / toast updates for tickets and forms (not chat).
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  list<string>  $userIds
+     * @param  list<string>  $roles
+     */
+    public function emitNotification(array $payload, array $userIds = [], array $roles = []): void
+    {
+        if ($userIds === [] && $roles === []) {
+            return;
+        }
+
+        $this->post('/internal/emit/notification', [
+            'userIds' => array_values(array_filter($userIds)),
+            'roles' => array_values(array_filter($roles)),
+            'payload' => $payload,
+        ]);
+    }
+
     public function refreshUserConversationRooms(string $userId): void
     {
         $this->post('/internal/refresh-rooms', ['userId' => $userId]);

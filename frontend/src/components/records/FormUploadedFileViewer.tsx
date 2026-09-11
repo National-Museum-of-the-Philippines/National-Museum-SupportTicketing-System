@@ -14,6 +14,7 @@ export function FormUploadedFileViewer(props: FormUploadedFileViewerProps) {
   return (
     <FormTemplateFileViewer
       {...props}
+      showMappedPlaceholders
       emptyMessage="No form file was uploaded with this submission."
     />
   );

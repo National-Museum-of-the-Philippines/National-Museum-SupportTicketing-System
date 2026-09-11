@@ -9,16 +9,24 @@ import { api, ApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth";
 import { ADMIN_DASHBOARD, dashboardForRole, isAdminRole, LOGIN } from "@/lib/navigation";
 import { draftToApiBodyWithUploads } from "@/lib/form-draft-api";
-import { newDraft, type FormDraft } from "@/lib/form-builder-store";
+import {
+  clearFormBuilderWip,
+  loadFormBuilderWip,
+  newDraft,
+  saveFormBuilderWip,
+  type FormDraft,
+} from "@/lib/form-builder-store";
 import { FORM_BUILDER_STEPS, type FormBuilderStepKey } from "@/lib/form-builder/constants";
 import {
   validateFormBuilderStep,
   validateFormBuilderStepsUntil,
 } from "@/lib/form-builder/validation";
 import { PrintTemplateStep } from "./PrintTemplateStep";
+import { ClientRequestApprovalStep } from "./steps/client-request-approval-step";
 import { FieldsStep } from "./steps/fields-step";
 import { GeneralStep } from "./steps/general-step";
 import { ProcedureStep } from "./steps/procedure-step";
+import { ProcessOwnerApprovalStep } from "./steps/process-owner-approval-step";
 
 function formSaveErrorMessage(error: unknown, email?: string) {
   if (error instanceof ApiError && error.status === 403) {
@@ -27,12 +35,20 @@ function formSaveErrorMessage(error: unknown, email?: string) {
   return error instanceof Error ? error.message : "Could not save form to server.";
 }
 
+function initialWizardState(): { draft: FormDraft; step: FormBuilderStepKey } {
+  const wip = loadFormBuilderWip();
+  const step = FORM_BUILDER_STEPS.some((s) => s.key === wip?.step)
+    ? (wip?.step as FormBuilderStepKey)
+    : "general";
+  return { draft: wip?.draft ?? newDraft(), step };
+}
+
 export function FormBuilderWizard() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user, isAuthLoading, logout } = useAuth();
-  const [draft, setDraft] = useState<FormDraft>(() => newDraft());
-  const [step, setStep] = useState<FormBuilderStepKey>("general");
+  const [draft, setDraft] = useState<FormDraft>(() => initialWizardState().draft);
+  const [step, setStep] = useState<FormBuilderStepKey>(() => initialWizardState().step);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const stepIdx = FORM_BUILDER_STEPS.findIndex((s) => s.key === step);
@@ -45,10 +61,20 @@ export function FormBuilderWizard() {
     }
   }, [user, isAuthLoading, navigate]);
 
-  const update = useCallback((patch: Partial<FormDraft>) => {
-    setSaveError(null);
-    setDraft((d) => ({ ...d, ...patch }));
-  }, []);
+  useEffect(() => {
+    saveFormBuilderWip(draft, step);
+  }, [draft, step]);
+
+  const update = useCallback(
+    (patch: Partial<FormDraft> | ((current: FormDraft) => Partial<FormDraft>)) => {
+      setSaveError(null);
+      setDraft((d) => {
+        const next = typeof patch === "function" ? patch(d) : patch;
+        return { ...d, ...next };
+      });
+    },
+    [],
+  );
 
   const goToStep = useCallback(
     (key: FormBuilderStepKey) => {
@@ -101,6 +127,7 @@ export function FormBuilderWizard() {
       const { form } = await api.createForm(body);
       await qc.invalidateQueries({ queryKey: ["my-forms"] });
       toast.success(`"${form.title}" saved as draft`);
+      clearFormBuilderWip();
       setDraft(newDraft());
       setStep("general");
     } catch (error) {
@@ -124,6 +151,7 @@ export function FormBuilderWizard() {
         description: "Open Records portal (separate tab) as a records officer → Pending Forms.",
         duration: 8000,
       });
+      clearFormBuilderWip();
       setDraft(newDraft());
       setStep("general");
     } catch (error) {
@@ -160,7 +188,7 @@ export function FormBuilderWizard() {
           />
         </div>
 
-        <ol className="wizard-step-track grid grid-cols-2 gap-x-3 gap-y-2.5 border-0 pb-0 sm:grid-cols-4">
+        <ol className="wizard-step-track grid grid-cols-2 gap-x-3 gap-y-2.5 border-0 pb-0 sm:grid-cols-3 lg:grid-cols-6">
           {FORM_BUILDER_STEPS.map((s, i) => {
             const done = i < stepIdx;
             const active = i === stepIdx;
@@ -196,6 +224,12 @@ export function FormBuilderWizard() {
         {step === "general" && <GeneralStep draft={draft} update={update} />}
         {step === "fields" && <FieldsStep draft={draft} update={update} />}
         {step === "print" && <PrintTemplateStep draft={draft} update={update} />}
+        {step === "clientApproval" && (
+          <ClientRequestApprovalStep draft={draft} update={update} />
+        )}
+        {step === "processOwner" && (
+          <ProcessOwnerApprovalStep draft={draft} update={update} />
+        )}
         {step === "procedure" && <ProcedureStep draft={draft} update={update} />}
       </div>
 

@@ -46,6 +46,7 @@ function RecordsDashboardPage() {
   });
 
   const pending = data?.recentPending ?? [];
+  const published = data?.recentPublished ?? [];
   const firstName = user?.name?.split(" ")[0];
   const pendingCount = data?.pendingCount ?? 0;
 
@@ -142,6 +143,49 @@ function RecordsDashboardPage() {
                       Review
                     </Link>
                   </div>
+                }
+              />
+            ))}
+          </ul>
+        )}
+      </DataPanel>
+
+      <DataPanel
+        title="Published forms"
+        action={
+          published.length > 0 ? (
+            <ActionLink to={RECORDS_PUBLISHED} variant="outline">
+              View all
+            </ActionLink>
+          ) : undefined
+        }
+      >
+        {isLoading ? (
+          <PanelLoading label="Loading forms…" />
+        ) : published.length === 0 ? (
+          <EmptyState
+            title="No published forms."
+            description="Approved forms will appear here once they are live for clients."
+          />
+        ) : (
+          <ul className="divide-y divide-border/80">
+            {published.map((row) => (
+              <ListRow
+                key={row._id}
+                title={row.title}
+                subtitle={`${row.refNumber} · ${row.createdBy?.name ?? "Admin"}`}
+                trailing={<FormStatusBadge status={row.status} />}
+                action={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shadow-sm"
+                    onClick={() =>
+                      setViewForm({ id: row._id, title: row.title, refNumber: row.refNumber })
+                    }
+                  >
+                    View file
+                  </Button>
                 }
               />
             ))}

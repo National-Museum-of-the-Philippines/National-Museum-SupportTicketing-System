@@ -1,11 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { FileText } from "lucide-react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   DataPanel,
   EmptyState,
   LoadingRows,
   WorkspacePageHeader,
 } from "@/components/layout/workspace-ui";
+import { FormPdfViewerDialog } from "@/components/records/FormPdfViewerDialog";
 import { api } from "@/lib/api/client";
 import { useRecordsSession } from "@/lib/use-portal-session";
 
@@ -15,6 +19,9 @@ export const Route = createFileRoute("/records/published")({
 
 function PublishedFormsPage() {
   const { canQuery } = useRecordsSession();
+  const [viewForm, setViewForm] = useState<{ id: string; title: string; refNumber: string } | null>(
+    null,
+  );
   const { data, isLoading } = useQuery({
     queryKey: ["records-published"],
     queryFn: () => api.recordsForms({ status: "published" }),
@@ -40,10 +47,11 @@ function PublishedFormsPage() {
                   <th className="px-6 py-3">Ref</th>
                   <th className="px-6 py-3">Effectivity</th>
                   <th className="px-6 py-3">Version</th>
+                  <th className="px-6 py-3">Action</th>
                 </tr>
               </thead>
               <tbody>
-                <LoadingRows cols={4} />
+                <LoadingRows cols={5} />
               </tbody>
             </table>
           </div>
@@ -61,6 +69,7 @@ function PublishedFormsPage() {
                   <th className="px-6 py-3">Ref</th>
                   <th className="px-6 py-3">Effectivity</th>
                   <th className="px-6 py-3">Version</th>
+                  <th className="px-6 py-3">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -72,6 +81,18 @@ function PublishedFormsPage() {
                     </td>
                     <td className="px-6 py-3">{row.effectivity}</td>
                     <td className="px-6 py-3 text-muted-foreground">{row.version}</td>
+                    <td className="px-6 py-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          setViewForm({ id: row._id, title: row.title, refNumber: row.refNumber })
+                        }
+                      >
+                        <FileText className="mr-1.5 h-3.5 w-3.5" />
+                        View file
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -79,6 +100,16 @@ function PublishedFormsPage() {
           </div>
         )}
       </DataPanel>
+
+      <FormPdfViewerDialog
+        formId={viewForm?.id ?? null}
+        formTitle={viewForm?.title}
+        refNumber={viewForm?.refNumber}
+        open={Boolean(viewForm)}
+        onOpenChange={(open) => {
+          if (!open) setViewForm(null);
+        }}
+      />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { toast } from "sonner";
 import type { ConversationMessageRecord, ConversationRecord, MentionRecord, PokeRecord } from "@/lib/api/types";
@@ -9,17 +9,23 @@ import {
   onRealtimeConversationUpdate,
   onRealtimeMessage,
   onRealtimeMention,
+  onRealtimeNotification,
   onRealtimePoke,
   type RealtimeConversationEvent,
   type RealtimeMessageEvent,
+  type RealtimeNotificationEvent,
 } from "@/lib/message-socket";
 import { isViewingConversation } from "@/lib/active-conversation";
 import { addMessageNotification } from "@/lib/message-notifications";
+import { addLiveNotification } from "@/lib/live-notifications";
 import { playMessageSound } from "@/lib/notification-sound";
 import { addPokeNotification } from "@/lib/poke-notifications";
 import {
+  ADMIN_FORMS,
   ADMIN_MESSAGES,
+  ADMIN_MY_REQUESTS_SUBMIT,
   CLIENT_MESSAGES,
+  CLIENT_SUBMIT,
   RECORDS_MESSAGES,
   isAdminRole,
   isClientRole,
@@ -27,6 +33,22 @@ import {
 } from "@/lib/navigation";
 import type { PortalSlot } from "@/lib/sessions";
 import { useAuth } from "@/lib/auth";
+
+function isFormFillPath(pathname: string) {
+  return (
+    pathname === ADMIN_FORMS ||
+    pathname.startsWith(`${ADMIN_FORMS}/`) ||
+    pathname === ADMIN_MY_REQUESTS_SUBMIT ||
+    pathname.startsWith(`${ADMIN_MY_REQUESTS_SUBMIT}/`) ||
+    pathname === CLIENT_SUBMIT ||
+    pathname.startsWith(`${CLIENT_SUBMIT}/`)
+  );
+}
+
+function matchesSlot(slot: PortalSlot, audience?: string) {
+  if (!audience) return true;
+  return audience === slot;
+}
 
 function messagesPathForSlot(slot: PortalSlot) {
   if (slot === "admin") return ADMIN_MESSAGES;
@@ -66,9 +88,10 @@ export function useMessageRealtime(slot: PortalSlot) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const fillingForm = useRouterState({ select: (s) => isFormFillPath(s.location.pathname) });
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || fillingForm) return;
     const roleOk =
       (slot === "admin" && isAdminRole(user.role)) ||
       (slot === "records" && isRecordsRole(user.role)) ||
@@ -176,11 +199,31 @@ export function useMessageRealtime(slot: PortalSlot) {
       });
     });
 
+    const unsubNotification = onRealtimeNotification(slot, (event: RealtimeNotificationEvent) => {
+      if (!matchesSlot(slot, event.audience)) return;
+      if (event.actorId && event.actorId === user.id) return;
+
+      addLiveNotification(slot, {
+        id: `${event.type ?? "n"}-${event.ticketId ?? event.formId ?? event.createdAt ?? Date.now()}`,
+        title: event.title,
+        message: event.message,
+        time: event.createdAt,
+        to: event.to ?? (slot === "admin" ? "/admin/approvals" : slot === "records" ? "/records/pending" : "/client/requests"),
+        params: event.params,
+      });
+
+      playMessageSound();
+      toast(event.title, {
+        description: event.message,
+      });
+    });
+
     return () => {
       unsubMessage();
       unsubConv();
       unsubPoke();
       unsubMention();
+      unsubNotification();
     };
-  }, [user, slot, qc, navigate]);
+  }, [user, slot, qc, navigate, fillingForm]);
 }

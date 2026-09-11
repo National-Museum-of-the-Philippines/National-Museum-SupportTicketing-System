@@ -3,12 +3,23 @@ import type { TicketStatus } from "@/lib/api/types";
 export type StatusTone = "neutral" | "warning" | "info" | "success" | "danger";
 
 export function formatTicketStatus(status: string): string {
-  return status.replace(/_/g, " ");
+  switch (status) {
+    case "for_client_approval":
+      return "For Client Approval";
+    case "for_process_owner":
+      return "For Process Owner";
+    case "pending_approval":
+      return "Pending Approval";
+    default:
+      return status.replace(/_/g, " ");
+  }
 }
 
 export function ticketStatusTone(status: TicketStatus | string): StatusTone {
   switch (status) {
     case "pending_approval":
+    case "for_client_approval":
+    case "for_process_owner":
     case "pending":
     case "reopened":
       return "warning";

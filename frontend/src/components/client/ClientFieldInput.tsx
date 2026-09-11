@@ -1,10 +1,16 @@
 import { Loader2, Upload } from "lucide-react";
 import { SignaturePad } from "@/components/client/SignaturePad";
+import { TimeAmPmPicker } from "@/components/client/TimeAmPmPicker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { LiveFormField } from "@/lib/api/types";
 import { normalizeChoiceOptionsForField } from "@/lib/form-field-normalize";
+import {
+  formatDateTime12h,
+  parseDateTimeValue,
+  parseTimeTo12h,
+} from "@/lib/time-ampm";
 import { CLIENT_FILE_FIELD_ACCEPT, MAX_UPLOAD_MB } from "@/lib/upload-limits";
 import { cn } from "@/lib/utils";
 
@@ -134,7 +140,9 @@ export function ClientFieldInput({
                       checked={checked}
                       onChange={(e) => {
                         let next = selected.filter(
-                          (item) => item !== option && !/^others?\s*:/i.test(item),
+                          (item) =>
+                            item !== option &&
+                            !(isOthersOption(option) && /^others?\s*:/i.test(item)),
                         );
                         if (e.target.checked) {
                           next = [...next, option];
@@ -152,9 +160,12 @@ export function ClientFieldInput({
                       onChange={(e) => {
                         const detail = e.target.value;
                         let next = selected.filter(
-                          (item) => item !== option && !/^others?\s*:/i.test(item),
+                          (item) =>
+                            item !== option &&
+                            !(isOthersOption(option) && /^others?\s*:/i.test(item)),
                         );
-                        next = [...next, detail.trim() ? `Others: ${detail.trim()}` : option];
+                        // Keep spaces as typed (including while typing the next word).
+                        next = [...next, detail.length > 0 ? `Others: ${detail}` : option];
                         onChange(next);
                       }}
                     />
@@ -181,6 +192,55 @@ export function ClientFieldInput({
         </div>
       );
 
+    case "time":
+      return (
+        <div className="space-y-2">
+          {label}
+          <TimeAmPmPicker
+            id={id}
+            value={value}
+            onChange={(next) => onChange(next)}
+            required={field.required}
+          />
+        </div>
+      );
+
+    case "datetime": {
+      const { date, time } = parseDateTimeValue(value);
+      const emitDateTime = (nextDate: string, nextTimeRaw: string) => {
+        if (!nextDate) {
+          onChange("");
+          return;
+        }
+        onChange(formatDateTime12h(nextDate, parseTimeTo12h(nextTimeRaw)));
+      };
+      return (
+        <div className="space-y-2">
+          {label}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input
+              id={id}
+              type="date"
+              className="sm:max-w-[11rem]"
+              value={date}
+              onChange={(e) =>
+                emitDateTime(
+                  e.target.value,
+                  time && time.hour && time.minute ? `${time.hour}:${time.minute} ${time.ampm}` : "",
+                )
+              }
+              required={field.required}
+            />
+            <TimeAmPmPicker
+              value={time && time.hour && time.minute ? `${time.hour}:${time.minute} ${time.ampm}` : ""}
+              onChange={(next) => emitDateTime(date, next)}
+              required={field.required}
+            />
+          </div>
+        </div>
+      );
+    }
+
     case "email":
       return (
         <div className="space-y-2">
@@ -196,20 +256,38 @@ export function ClientFieldInput({
         </div>
       );
 
-    case "number":
+    case "number": {
+      const integerOnly = (field.numberMode ?? "integer") === "integer";
       return (
         <div className="space-y-2">
           {label}
           <Input
             id={id}
-            type="number"
+            type="text"
+            inputMode={integerOnly ? "numeric" : "decimal"}
+            pattern={integerOnly ? "[0-9]*" : "[0-9]*[.]?[0-9]*"}
             value={String(value ?? "")}
-            placeholder={field.placeholder}
-            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder ?? (integerOnly ? "e.g. 10" : "e.g. 10.5")}
+            onChange={(e) => {
+              const raw = e.target.value;
+              // Block scientific notation (e/E) and signs.
+              if (/[eE+\-]/.test(raw)) return;
+              if (integerOnly) {
+                if (raw === "" || /^\d+$/.test(raw)) onChange(raw);
+                return;
+              }
+              if (raw === "" || /^\d*\.?\d*$/.test(raw)) onChange(raw);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "e" || e.key === "E" || e.key === "+" || e.key === "-") {
+                e.preventDefault();
+              }
+            }}
             required={field.required}
           />
         </div>
       );
+    }
 
     case "signature":
       return (

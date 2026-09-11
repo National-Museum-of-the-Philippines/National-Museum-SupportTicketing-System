@@ -45,8 +45,30 @@ export function parsePlacementsFromTemplate(printTemplate: string | undefined | 
 }
 
 export function resolveFormPlacements(form: FormRecord): PrintFieldPlacement[] {
-  if (form.printPlacements?.length) return form.printPlacements;
-  return parsePlacementsFromTemplate(form.printTemplate).placements;
+  const raw = form.printPlacements?.length
+    ? form.printPlacements
+    : parsePlacementsFromTemplate(form.printTemplate).placements;
+  return raw
+    .map((placement, index) => {
+      const variable = String(placement.variable ?? "").trim();
+      const x = Number(
+        (placement as PrintFieldPlacement).xPct ??
+          (placement as { x_pct?: number }).x_pct,
+      );
+      const y = Number(
+        (placement as PrintFieldPlacement).yPct ??
+          (placement as { y_pct?: number }).y_pct,
+      );
+      if (!variable || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return {
+        id: placement.id || `placement_${index}`,
+        variable,
+        label: (placement.label ?? variable).trim() || variable,
+        xPct: x,
+        yPct: y,
+      } satisfies PrintFieldPlacement;
+    })
+    .filter((row): row is PrintFieldPlacement => row !== null);
 }
 
 export function resolveFormPlacementFontSize(form: FormRecord): number {
@@ -112,6 +134,7 @@ export function displayValueForPlacement(
   placementLabel: string,
   answers: Record<string, unknown>,
   showLabelWhenEmpty = false,
+  emptyChoiceAsCheckmark = showLabelWhenEmpty,
 ): string {
   const field =
     fields.find(
@@ -128,8 +151,9 @@ export function displayValueForPlacement(
       field,
       placementLabel,
       raw,
-      showLabelWhenEmpty,
+      emptyChoiceAsCheckmark,
     );
+    // "" = unselected option box (do not fall through to the field label).
     if (choiceDisplay !== null) return choiceDisplay;
   }
 

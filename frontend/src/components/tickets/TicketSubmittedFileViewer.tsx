@@ -66,10 +66,14 @@ export function TicketSubmittedFileViewer({
 
   if (hasPlacements && form) {
     const answers = { ...(ticket.answers ?? {}) };
-    // Older tickets may lack {{prof_email}} when PAMANA only had a shared placeholder inbox.
+    // Older tickets may lack profile fields when PAMANA staffinformations was broken.
     const email = String(answers["{{prof_email}}"] ?? "").trim();
     if (!email && ticket.creatorEmail?.trim()) {
       answers["{{prof_email}}"] = ticket.creatorEmail.trim();
+    }
+    const division = String(answers["{{prof_division}}"] ?? "").trim();
+    if (!division && ticket.division?.trim()) {
+      answers["{{prof_division}}"] = ticket.division.trim();
     }
 
     return (

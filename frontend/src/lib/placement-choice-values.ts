@@ -5,6 +5,20 @@ type ChoiceField = Pick<FormField | LiveFormField, "type" | "label" | "options">
 
 export const PLACEMENT_CHECKMARK = "✓";
 
+/** Placeable label for the underscore line beside an Others option. */
+export function othersBlankPlacementLabel(option: string): string {
+  return `${option.trim()} (blank)`;
+}
+
+export function isOthersOptionLabel(label: string): boolean {
+  return /^others?$/i.test(label.trim());
+}
+
+/** True when this marker is the blank line next to Others (not the checkbox). */
+export function isOthersBlankPlacementLabel(placementLabel: string): boolean {
+  return /^others?\s*\(\s*blank\s*\)$/i.test(placementLabel.trim());
+}
+
 function normalizeOption(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -22,6 +36,9 @@ export function resolvePlacementOption(field: ChoiceField, placementLabel: strin
 
   const label = placementLabel.trim();
   if (!label) return null;
+
+  // Blank-line markers are not checkbox targets.
+  if (isOthersBlankPlacementLabel(label)) return null;
 
   const exact = options.find((option) => option === label);
   if (exact) return exact;
@@ -56,7 +73,27 @@ export function isChoiceOptionSelected(value: unknown, option: string): boolean 
   return normalizeOption(String(value)) === target;
 }
 
-/** Checkmark for a specific option placement, empty when unchecked, null = use default text formatting. */
+/** Extract typed Others detail from checkbox answers (`Others: detail`). */
+export function extractOthersDetail(value: unknown): string {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const text = String(item);
+      const match = text.match(/^others?\s*:\s*(.+)$/i);
+      if (match?.[1]?.trim()) return match[1].trim();
+    }
+    return "";
+  }
+  if (typeof value === "string") {
+    const match = value.match(/^others?\s*:\s*(.+)$/i);
+    if (match?.[1]?.trim()) return match[1].trim();
+  }
+  return "";
+}
+
+/**
+ * Checkmark for a specific option placement, typed text for Others blank line,
+ * empty when unchecked, null = use default text formatting.
+ */
 export function displayValueForChoicePlacement(
   field: ChoiceField,
   placementLabel: string,
@@ -65,12 +102,22 @@ export function displayValueForChoicePlacement(
 ): string | null {
   if (!isChoiceFieldType(field.type)) return null;
 
-  const option = resolvePlacementOption(field, placementLabel);
-  if (!option) {
-    // Never print joined option words on checkbox/radio field markers.
-    return "";
+  // Blank beside Others → typed word only (never the checkmark).
+  if (isOthersBlankPlacementLabel(placementLabel)) {
+    const hasOthers = (field.options ?? []).some((option) => isOthersOptionLabel(option));
+    if (!hasOthers) return "";
+    const detail = extractOthersDetail(value);
+    if (detail) return detail;
+    return showMarkerWhenEmpty ? "…" : "";
   }
 
+  const option = resolvePlacementOption(field, placementLabel);
+  if (!option) {
+    // Not an option-box marker — let the caller use the field/label fallback.
+    return null;
+  }
+
+  // Others checkbox → checkmark only; detail goes on the blank placement.
   if (isChoiceOptionSelected(value, option)) return PLACEMENT_CHECKMARK;
   if (showMarkerWhenEmpty) return PLACEMENT_CHECKMARK;
   return "";

@@ -38,6 +38,9 @@ class Ticket extends Model
         'attachment_name',
         'attachment_mime_type',
         'status',
+        'client_approval_stage',
+        'process_owner_approvals_done',
+        'process_owner_phase',
         'priority',
         'rejection_reason',
         'feedback_rating',
@@ -50,6 +53,7 @@ class Ticket extends Model
 
     protected $casts = [
         'answers' => 'array',
+        'process_owner_approvals_done' => 'integer',
         'feedback_rating' => 'integer',
         'feedback_submitted' => 'boolean',
         'client_confirmed' => 'boolean',
@@ -92,7 +96,7 @@ class Ticket extends Model
             return $this->assignees->map(fn (User $u) => (string) $u->id)->all();
         }
 
-        return $this->assignees()->pluck('users.id')->map(fn ($id) => (string) $id)->all();
+        return $this->assignees()->allRelatedIds()->map(fn ($id) => (string) $id)->values()->all();
     }
 
     public function toApiArray(array $extra = [], array $hidden = []): array

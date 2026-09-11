@@ -18,6 +18,15 @@ export function validateFormBuilderStep(step: FormBuilderStepKey, draft: FormDra
         return "Place at least one field on the template before continuing.";
       }
       return null;
+    case "clientApproval":
+      return null;
+    case "processOwner": {
+      const selected = (draft.actionOfficers ?? []).filter((o) => o.userId?.trim());
+      if (selected.length < 1) {
+        return "Select at least one Action Officer before continuing.";
+      }
+      return null;
+    }
     case "procedure":
       return null;
     default:

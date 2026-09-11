@@ -5,6 +5,8 @@ import {
   CheckSquare,
   CircleDot,
   Calendar as CalendarIcon,
+  CalendarClock,
+  Clock,
   Upload,
   Mail,
   Hash,
@@ -16,6 +18,8 @@ export const FORM_BUILDER_STEPS = [
   { key: "general", label: "General" },
   { key: "fields", label: "Fields" },
   { key: "print", label: "Print Template" },
+  { key: "clientApproval", label: "Client Request Approval" },
+  { key: "processOwner", label: "Process Owner Approval" },
   { key: "procedure", label: "Supporting Doc" },
 ] as const;
 
@@ -28,6 +32,8 @@ export const FIELD_ELEMENTS: { type: FieldType; label: string; icon: React.Eleme
   { type: "checkbox", label: "Checkbox", icon: CheckSquare },
   { type: "radio", label: "Radio", icon: CircleDot },
   { type: "date", label: "Date Picker", icon: CalendarIcon },
+  { type: "time", label: "Time Picker", icon: Clock },
+  { type: "datetime", label: "Date & Time", icon: CalendarClock },
   { type: "file", label: "File Upload", icon: Upload },
   { type: "email", label: "Email", icon: Mail },
   { type: "number", label: "Number", icon: Hash },

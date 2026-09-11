@@ -85,9 +85,7 @@
     0 24px 56px color-mix(in oklab, var(--maroon-deep) 7%, transparent);
   --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--gold) 18%, transparent);
 
-  --font-sans:
-    "Plus Jakarta Sans", "Inter", "Segoe UI", "SF Pro Text", Roboto, "Helvetica Neue", Arial,
-    sans-serif;
+  --font-sans: "Segoe UI", "SF Pro Text", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 .dark {
@@ -1352,46 +1350,6 @@
     }
   }
 
-  .navigation-progress {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 100;
-    height: 2px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.18s ease;
-  }
-
-  .navigation-progress-active {
-    opacity: 1;
-  }
-
-  .navigation-progress-bar {
-    display: block;
-    height: 100%;
-    width: 35%;
-    border-radius: 0 2px 2px 0;
-    background: linear-gradient(
-      90deg,
-      color-mix(in oklab, var(--maroon) 80%, transparent),
-      var(--gold),
-      color-mix(in oklab, var(--maroon) 80%, transparent)
-    );
-    box-shadow: 0 0 14px color-mix(in oklab, var(--maroon) 45%, transparent);
-    animation: navigation-progress-run 0.85s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-  }
-
-  @keyframes navigation-progress-run {
-    0% {
-      transform: translateX(-120%);
-    }
-    100% {
-      transform: translateX(320%);
-    }
-  }
-
   .feedback-reveal {
     animation: dashboard-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
@@ -1950,6 +1908,25 @@
     letter-spacing: 0;
   }
 
+  /* Typed Others text on the blank line — keep spaces readable, flush left on blank. */
+  .dynamic-text.placement-others-blank {
+    width: max-content;
+    max-width: min(42ch, 55%);
+    overflow: visible;
+    white-space: pre-wrap;
+    letter-spacing: 0.03em;
+    word-spacing: 0.35em;
+    text-align: left;
+  }
+
+  .placement-scale-root .dynamic-text.placement-others-blank {
+    width: max-content;
+    max-width: min(
+      42ch,
+      calc(var(--dynamic-text-width, 150px) * 3 * 100cqw / var(--placement-natural-width, 1000))
+    );
+  }
+
   .placement-scale-root .dynamic-text.placement-checkmark {
     font-size: max(
       10px,
@@ -1978,13 +1955,24 @@
   }
 
   .placement-signature-img {
-    max-width: var(--dynamic-text-width, 150px);
+    display: block;
+    width: auto;
+    height: auto;
+    min-width: 96px;
+    min-height: 32px;
+    max-width: 220px;
+    max-height: 56px;
+    object-fit: contain;
+    object-position: left bottom;
   }
 
   .placement-scale-root .placement-signature-img {
-    max-width: calc(
-      var(--dynamic-text-width, 150px) * 100cqw / var(--placement-natural-width, 1000)
+    /* Floor size so dialog container queries (cqw = 0 while settling) cannot hide the ink. */
+    max-width: max(
+      96px,
+      calc(var(--dynamic-text-width, 150px) * 1.6 * 100cqw / var(--placement-natural-width, 1000))
     );
+    max-height: max(32px, 3.75em);
   }
 
   .dynamic-text-anchor:active {
@@ -2094,7 +2082,6 @@
     .page-transition-soft,
     .login-center,
     .gate-page-card,
-    .navigation-progress-bar,
     .dashboard-hero,
     .dashboard-alert,
     .stat-card-link,
@@ -2108,10 +2095,6 @@
     .page-loader::before {
       animation: none !important;
       transition: none !important;
-    }
-
-    .navigation-progress-active {
-      opacity: 0;
     }
 
     .stat-card-link:hover,

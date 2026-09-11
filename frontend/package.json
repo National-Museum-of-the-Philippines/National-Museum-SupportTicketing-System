@@ -7,7 +7,7 @@
     "dev": "node-real ./node_modules/vite/bin/vite.js",
     "build": "node-real ./node_modules/vite/bin/vite.js build",
     "build:dev": "node-real ./node_modules/vite/bin/vite.js build --mode development",
-    "preview": "node-real ./node_modules/vite/bin/vite.js preview",
+    "preview": "node-real ./node_modules/vite/bin/vite.js preview --host 0.0.0.0 --port 5173 --strictPort",
     "lint": "bunx eslint .",
     "format": "bunx prettier --write ."
   },

@@ -13,7 +13,7 @@ export function usePokeNotifications(slot: PortalSlot, enabled = true): Notifica
     queryKey: ["recent-pokes", slot],
     queryFn: () => api.listRecentPokes(slot),
     enabled,
-    staleTime: 30_000,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 
   useEffect(() => {

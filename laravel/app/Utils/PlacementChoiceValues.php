@@ -11,6 +11,16 @@ final class PlacementChoiceValues
         return $type === 'checkbox' || $type === 'radio';
     }
 
+    public static function isOthersOptionLabel(string $label): bool
+    {
+        return (bool) preg_match('/^others?$/i', trim($label));
+    }
+
+    public static function isOthersBlankPlacementLabel(string $placementLabel): bool
+    {
+        return (bool) preg_match('/^others?\s*\(\s*blank\s*\)$/i', trim($placementLabel));
+    }
+
     /**
      * @param  array{type: string, label: string, options?: array<int, string>}  $field
      */
@@ -27,6 +37,10 @@ final class PlacementChoiceValues
 
         $label = trim($placementLabel);
         if ($label === '') {
+            return null;
+        }
+
+        if (self::isOthersBlankPlacementLabel($label)) {
             return null;
         }
 
@@ -92,17 +106,58 @@ final class PlacementChoiceValues
             return null;
         }
 
-        $option = self::resolvePlacementOption($field, $placementLabel);
-        if ($option === null) {
-            return '';
+        // Blank beside Others → typed word only.
+        if (self::isOthersBlankPlacementLabel($placementLabel)) {
+            $hasOthers = false;
+            foreach ($field['options'] ?? [] as $option) {
+                if (self::isOthersOptionLabel((string) $option)) {
+                    $hasOthers = true;
+                    break;
+                }
+            }
+            if (! $hasOthers) {
+                return '';
+            }
+            $detail = self::extractOthersDetail($value);
+            if ($detail !== '') {
+                return $detail;
+            }
+
+            return $showMarkerWhenEmpty ? '…' : '';
         }
 
+        $option = self::resolvePlacementOption($field, $placementLabel);
+        if ($option === null) {
+            return null;
+        }
+
+        // Others checkbox → checkmark only; detail goes on the blank placement.
         if (self::isChoiceOptionSelected($value, $option)) {
             return self::PLACEMENT_CHECKMARK;
         }
 
         if ($showMarkerWhenEmpty) {
             return self::PLACEMENT_CHECKMARK;
+        }
+
+        return '';
+    }
+
+    public static function extractOthersDetail(mixed $value): string
+    {
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                $text = (string) $item;
+                if (preg_match('/^others?\s*:\s*(.+)$/i', $text, $match) && trim($match[1]) !== '') {
+                    return trim($match[1]);
+                }
+            }
+
+            return '';
+        }
+
+        if (is_string($value) && preg_match('/^others?\s*:\s*(.+)$/i', $value, $match) && trim($match[1]) !== '') {
+            return trim($match[1]);
         }
 
         return '';

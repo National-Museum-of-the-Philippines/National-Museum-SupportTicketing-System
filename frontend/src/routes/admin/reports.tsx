@@ -28,7 +28,9 @@ export function ReportsPage() {
   const items = tickets?.items ?? [];
   const closed = items.filter((t) => t.status === "closed").length;
   const withFeedback = items.filter((t) => t.feedbackSubmitted).length;
-  const pending = items.filter((t) => t.status === "pending_approval").length;
+  const pending = items.filter((t) =>
+    ["pending_approval", "for_process_owner", "for_client_approval"].includes(t.status),
+  ).length;
   const feedbackItems = items
     .filter((t) => t.feedbackSubmitted)
     .sort(

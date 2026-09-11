@@ -63,7 +63,7 @@ function MappedFormPage({
     <div className={cn("w-full", !fullBleed && "mx-auto")} style={outerStyle}>
       <div
         className={cn(
-          "relative w-full overflow-hidden bg-white",
+          "relative w-full overflow-visible bg-white",
           fullBleed ? "rounded-none shadow-none ring-0" : "rounded-md shadow-sm ring-1 ring-border/80",
         )}
         style={placementCanvasStyle(placementFontSize, naturalWidth)}

@@ -1,6 +1,7 @@
 import type { LiveFormField } from "@/lib/api/types";
 import type { FormField } from "@/lib/form-builder-store";
 import { resolveMediaUrl } from "@/lib/media-url";
+import { formatStoredDateTimeForDisplay, formatStoredTimeForDisplay } from "@/lib/time-ampm";
 
 type AnyField = Pick<FormField | LiveFormField, "type" | "label" | "variable">;
 
@@ -30,6 +31,10 @@ export function formatFieldAnswerValue(field: AnyField, value: unknown): string 
       return typeof value === "string" && value.trim() ? "File attached" : "";
     case "date":
       return String(value);
+    case "time":
+      return formatStoredTimeForDisplay(value);
+    case "datetime":
+      return formatStoredDateTimeForDisplay(value);
     default:
       return String(value);
   }

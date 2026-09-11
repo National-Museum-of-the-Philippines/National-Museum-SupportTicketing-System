@@ -51,8 +51,13 @@ function TicketDetailPage() {
 
   const approve = useMutation({
     mutationFn: () => api.approveTicket(ticketId, "admin"),
-    onSuccess: () => {
-      toast.success("Request approved");
+    onSuccess: (res) => {
+      const phase = res.ticket?.processOwnerPhase;
+      toast.success(
+        phase === "assignment"
+          ? "Approved — ready for task assignment"
+          : "Request approved",
+      );
       invalidateAdminTicketQueries(qc);
       void qc.invalidateQueries({ queryKey: ["ticket", ticketId] });
     },
@@ -118,14 +123,29 @@ function TicketDetailPage() {
     return <PageLoader label="Loading request…" />;
   }
 
-  const isPendingApproval = ticket.status === "pending_approval";
-  const backTo = isPendingApproval ? ADMIN_APPROVALS : ADMIN_REQUESTS;
+  const isInApprovalQueue =
+    ticket.status === "pending_approval" ||
+    ticket.status === "for_process_owner" ||
+    ticket.status === "for_client_approval";
+  const isClientApproval = ticket.status === "for_client_approval";
+  const isProcessOwner =
+    ticket.status === "for_process_owner" || ticket.status === "pending_approval";
+  const processOwnerPhase = ticket.processOwnerPhase ?? "approval";
+  const awaitingProcessOwnerApproval = isProcessOwner && processOwnerPhase !== "assignment";
+  const awaitingTaskAssignment = isProcessOwner && processOwnerPhase === "assignment";
+  const canApprove = isClientApproval || awaitingProcessOwnerApproval;
+  const backTo = isInApprovalQueue ? ADMIN_APPROVALS : ADMIN_REQUESTS;
   const isAwaitingClient = ticket.status === "resolved";
-  const canAssign = !isPendingApproval && !isAwaitingClient && ticket.status !== "closed";
+  const canAssign =
+    awaitingTaskAssignment ||
+    (!isInApprovalQueue &&
+      !isAwaitingClient &&
+      ticket.status !== "closed" &&
+      ticket.status !== "rejected");
 
   return (
     <div className="page-shell">
-      <BackLink to={backTo} label={isPendingApproval ? "Back to approvals" : "Back to requests"} />
+      <BackLink to={backTo} label={isInApprovalQueue ? "Back to approvals" : "Back to requests"} />
 
       <WorkspacePageHeader
         title={ticket.ticketNumber}
@@ -144,6 +164,9 @@ function TicketDetailPage() {
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground">Status:</span>
             <StatusBadge status={ticket.status} />
+            {awaitingTaskAssignment ? (
+              <span className="text-muted-foreground">· Ready for task assignment</span>
+            ) : null}
             {ticket.creatorName ? (
               <span className="text-muted-foreground">· Client: {ticket.creatorName}</span>
             ) : null}
@@ -161,10 +184,14 @@ function TicketDetailPage() {
         <TicketRequestDetails ticket={ticket} className="lg:col-span-2" />
 
         <div className="space-y-4">
-          {isPendingApproval ? (
+          {canApprove ? (
             <ActionPanel
               title="Approve or reject"
-              description="Review the request details before approving or rejecting."
+              description={
+                isClientApproval
+                  ? "Review the request details before approving or rejecting."
+                  : "Action Officer approval — after all approvals, the last officer assigns personnel."
+              }
             >
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -193,7 +220,101 @@ function TicketDetailPage() {
             </ActionPanel>
           ) : null}
 
-          {!isPendingApproval ? (
+          {awaitingTaskAssignment ? (
+            <ActionPanel
+              title="Task assignment"
+              description={
+                assigneeData?.division
+                  ? `Select personnel from ${assigneeData.division}. After assignment the request becomes In Progress.`
+                  : "Select personnel for this request. After assignment the request becomes In Progress."
+              }
+            >
+              <FlowNotice tone="info" title="Requestor's division">
+                <span className="font-medium text-foreground">
+                  {getTicketDivision(ticket) || "Not specified"}
+                </span>
+                {ticket.creatorName ? (
+                  <span className="text-muted-foreground"> · {ticket.creatorName}</span>
+                ) : null}
+              </FlowNotice>
+              <div className="max-w-md space-y-2">
+                <Label>
+                  {assigneeData?.division
+                    ? `${assigneeData.division} personnel`
+                    : "Personnel (form owner's division)"}
+                </Label>
+                <div
+                  className={cn(
+                    "max-h-48 space-y-1 overflow-y-auto rounded-md border border-input bg-background p-2 shadow-sm",
+                  )}
+                >
+                  {assigneeData?.users.length ? (
+                    assigneeData.users.map((u) => {
+                      const checked = selectedAssigneeIds.includes(u._id);
+                      return (
+                        <label
+                          key={u._id}
+                          className={cn(
+                            "flex cursor-pointer items-start gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted/60",
+                            checked && "bg-muted/40",
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={checked}
+                            onChange={() => toggleAssignee(u._id)}
+                          />
+                          <span>
+                            <span className="font-medium">{u.name}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {u.division}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })
+                  ) : (
+                    <p className="px-2 py-3 text-sm text-muted-foreground">
+                      {assigneeData?.division
+                        ? `No active personnel found in ${assigneeData.division}.`
+                        : "No personnel available for this form's division."}
+                    </p>
+                  )}
+                </div>
+                {selectedAssigneeIds.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {selectedAssigneeIds.length} selected
+                  </p>
+                ) : null}
+              </div>
+              <Button
+                size="sm"
+                className="mt-3"
+                onClick={() => assign.mutate()}
+                disabled={selectedAssigneeIds.length === 0 || assign.isPending}
+              >
+                {assign.isPending ? "Assigning…" : "Assign"}
+              </Button>
+              <div className="mt-4 space-y-2 border-t border-border/70 pt-4">
+                <Input
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Rejection reason"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => reject.mutate(rejectReason)}
+                  disabled={!rejectReason.trim() || assign.isPending || reject.isPending}
+                >
+                  Reject request
+                </Button>
+              </div>
+            </ActionPanel>
+          ) : null}
+
+          {!isInApprovalQueue ? (
             <>
               {canAssign ? (
               <ActionPanel

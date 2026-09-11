@@ -16,11 +16,16 @@ import { inputCls, SectionHeader, WizardCard, WizardField } from "../shared";
 
 type FieldsStepProps = {
   draft: FormDraft;
-  update: (patch: Partial<FormDraft>) => void;
+  update: (patch: Partial<FormDraft> | ((current: FormDraft) => Partial<FormDraft>)) => void;
 };
 
 function isOptionField(type: FormField["type"]) {
   return type === "dropdown" || type === "radio" || type === "checkbox";
+}
+
+/** Dropdown/radio use the comma-separated draft; checkbox options are saved per row. */
+function usesCommaOptionsDraft(type: FormField["type"]) {
+  return type === "dropdown" || type === "radio";
 }
 
 function parseFieldOptions(text: string): string[] {
@@ -41,12 +46,20 @@ export function FieldsStep({ draft, update }: FieldsStepProps) {
   const selected = draft.fields.find((f) => f.id === selectedId) || null;
 
   const updateField = (id: string, patch: Partial<FormField>) =>
-    update({ fields: draft.fields.map((f) => (f.id === id ? { ...f, ...patch } : f)) });
+    update((current) => ({
+      fields: current.fields.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+    }));
 
   const commitOptionsDraft = (fieldId: string, draftText = optionsDraft) => {
-    const field = draft.fields.find((f) => f.id === fieldId);
-    if (!field || !isOptionField(field.type)) return;
-    updateField(fieldId, { options: parseFieldOptions(draftText) });
+    update((current) => {
+      const field = current.fields.find((f) => f.id === fieldId);
+      if (!field || !usesCommaOptionsDraft(field.type)) return {};
+      return {
+        fields: current.fields.map((f) =>
+          f.id === fieldId ? { ...f, options: parseFieldOptions(draftText) } : f,
+        ),
+      };
+    });
   };
 
   const selectField = (id: string) => {
@@ -55,7 +68,7 @@ export function FieldsStep({ draft, update }: FieldsStepProps) {
   };
 
   useEffect(() => {
-    if (!selected || !isOptionField(selected.type)) {
+    if (!selected || !usesCommaOptionsDraft(selected.type)) {
       setOptionsDraft("");
       return;
     }
@@ -64,18 +77,20 @@ export function FieldsStep({ draft, update }: FieldsStepProps) {
 
   const reorderFields = (fromId: string, toId: string) => {
     if (fromId === toId) return;
-    const fromIdx = draft.fields.findIndex((f) => f.id === fromId);
-    const toIdx = draft.fields.findIndex((f) => f.id === toId);
-    if (fromIdx < 0 || toIdx < 0) return;
-    const next = [...draft.fields];
-    const [item] = next.splice(fromIdx, 1);
-    next.splice(toIdx, 0, item);
-    update({ fields: next });
+    update((current) => {
+      const fromIdx = current.fields.findIndex((f) => f.id === fromId);
+      const toIdx = current.fields.findIndex((f) => f.id === toId);
+      if (fromIdx < 0 || toIdx < 0) return {};
+      const next = [...current.fields];
+      const [item] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, item);
+      return { fields: next };
+    });
   };
 
   const addField = (type: FieldType) => {
+    if (selectedId) commitOptionsDraft(selectedId);
     const id = `fld_${Date.now()}`;
-    const variable = nextVariable(type, draft.fields);
     const labelMap: Partial<Record<FieldType, string>> = {
       textbox: "Untitled text",
       textarea: "Long text",
@@ -83,32 +98,35 @@ export function FieldsStep({ draft, update }: FieldsStepProps) {
       checkbox: "Type",
       radio: "Choose one",
       date: "Date",
+      time: "Time",
+      datetime: "Date & time",
       file: "Attachment",
       email: "Email",
       number: "Number",
       signature: "Signature",
     };
-    const f: FormField = {
-      id,
-      type,
-      variable,
-      label: labelMap[type] ?? "Field",
-      required: false,
-      ...(type === "dropdown" || type === "radio" || type === "checkbox"
-        ? {
-            options:
-              type === "checkbox"
-                ? [...COMMON_SERVICE_TYPE_OPTIONS]
-                : ["Option 1", "Option 2"],
-          }
-        : {}),
-    };
-    update({ fields: [...draft.fields, f] });
-    selectField(id);
+    update((current) => {
+      const variable = nextVariable(type, current.fields);
+      const f: FormField = {
+        id,
+        type,
+        variable,
+        label: labelMap[type] ?? "Field",
+        required: false,
+        ...(type === "number" ? { numberMode: "integer" as const } : {}),
+        ...(type === "dropdown" || type === "radio" || type === "checkbox"
+          ? {
+              options: type === "checkbox" ? ["Option 1"] : ["Option 1", "Option 2"],
+            }
+          : {}),
+      };
+      return { fields: [...current.fields, f] };
+    });
+    setSelectedId(id);
   };
 
   const removeField = (id: string) => {
-    update({ fields: draft.fields.filter((f) => f.id !== id) });
+    update((current) => ({ fields: current.fields.filter((f) => f.id !== id) }));
     if (selectedId === id) setSelectedId(null);
   };
 
@@ -235,7 +253,7 @@ export function FieldsStep({ draft, update }: FieldsStepProps) {
                 onChange={(e) => updateField(selected.id, { placeholder: e.target.value })}
               />
             </WizardField>
-            {isOptionField(selected.type) && (
+            {isOptionField(selected.type) && selected.type !== "checkbox" && (
               <WizardField label="Options" hint="comma-separated">
                 <input
                   className={inputCls}
@@ -244,46 +262,132 @@ export function FieldsStep({ draft, update }: FieldsStepProps) {
                   onChange={(e) => setOptionsDraft(e.target.value)}
                   onBlur={() => commitOptionsDraft(selected.id)}
                 />
-                {selected.type === "checkbox" ? (
-                  <button
-                    type="button"
-                    className="mt-2 text-xs font-medium text-maroon hover:underline"
-                    onClick={() => {
-                      const text = commonServiceTypesPlaceholder();
-                      setOptionsDraft(text);
-                      commitOptionsDraft(selected.id, text);
-                    }}
-                  >
-                    Use common service types (6 options)
-                  </button>
-                ) : null}
                 <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                  Separate each choice with a comma. Edit freely for any form type — these presets are optional.
+                  Separate each choice with a comma.
                 </p>
               </WizardField>
             )}
-            <div className="grid grid-cols-2 gap-3">
-              <WizardField label="Min length">
-                <input
-                  type="number"
-                  className={inputCls}
-                  value={selected.minLength ?? ""}
-                  onChange={(e) =>
-                    updateField(selected.id, { minLength: Number(e.target.value) || undefined })
-                  }
-                />
+            {selected.type === "checkbox" && (
+              <WizardField label="Options" hint="Start with 1 — add more with +">
+                <div className="space-y-2">
+                  {(selected.options?.length ? selected.options : [""]).map((opt, idx) => (
+                    <div key={`opt-${idx}`} className="flex items-center gap-2">
+                      <input
+                        className={inputCls}
+                        value={opt}
+                        placeholder={idx === 0 ? "First option" : `Option ${idx + 1}`}
+                        onChange={(e) => {
+                          const next = [...(selected.options?.length ? selected.options : [""])];
+                          next[idx] = e.target.value;
+                          updateField(selected.id, { options: next });
+                        }}
+                      />
+                      {(selected.options?.length ?? 0) > 1 ? (
+                        <button
+                          type="button"
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+                          aria-label="Remove option"
+                          onClick={() => {
+                            const next = (selected.options ?? []).filter((_, i) => i !== idx);
+                            updateField(selected.id, { options: next.length ? next : [""] });
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
+                      onClick={() =>
+                        updateField(selected.id, {
+                          options: [...(selected.options?.length ? selected.options : [""]), ""],
+                        })
+                      }
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add option
+                    </button>
+                    <select
+                      className={`${inputCls} max-w-[14rem]`}
+                      defaultValue=""
+                      onChange={(e) => {
+                        const pick = e.target.value;
+                        e.target.value = "";
+                        if (!pick) return;
+                        const cur = (selected.options ?? []).map((o) => o.trim()).filter(Boolean);
+                        if (cur.some((o) => o.toLowerCase() === pick.toLowerCase())) return;
+                        updateField(selected.id, { options: [...cur, pick] });
+                      }}
+                    >
+                      <option value="">+ From common list…</option>
+                      {COMMON_SERVICE_TYPE_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </WizardField>
-              <WizardField label="Max length">
-                <input
-                  type="number"
-                  className={inputCls}
-                  value={selected.maxLength ?? ""}
-                  onChange={(e) =>
-                    updateField(selected.id, { maxLength: Number(e.target.value) || undefined })
-                  }
-                />
+            )}
+            {selected.type === "number" && (
+              <WizardField label="Number format">
+                <div className="flex gap-2">
+                  <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm">
+                    <input
+                      type="radio"
+                      name={`numberMode-${selected.id}`}
+                      checked={(selected.numberMode ?? "integer") === "integer"}
+                      onChange={() => updateField(selected.id, { numberMode: "integer" })}
+                      className="accent-maroon"
+                    />
+                    Whole number
+                  </label>
+                  <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm">
+                    <input
+                      type="radio"
+                      name={`numberMode-${selected.id}`}
+                      checked={selected.numberMode === "decimal"}
+                      onChange={() => updateField(selected.id, { numberMode: "decimal" })}
+                      className="accent-maroon"
+                    />
+                    With decimal
+                  </label>
+                </div>
               </WizardField>
-            </div>
+            )}
+            {selected.type !== "number" &&
+            selected.type !== "date" &&
+            selected.type !== "time" &&
+            selected.type !== "datetime" &&
+            selected.type !== "signature" &&
+            selected.type !== "file" &&
+            selected.type !== "checkbox" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <WizardField label="Min length">
+                  <input
+                    type="number"
+                    className={inputCls}
+                    value={selected.minLength ?? ""}
+                    onChange={(e) =>
+                      updateField(selected.id, { minLength: Number(e.target.value) || undefined })
+                    }
+                  />
+                </WizardField>
+                <WizardField label="Max length">
+                  <input
+                    type="number"
+                    className={inputCls}
+                    value={selected.maxLength ?? ""}
+                    onChange={(e) =>
+                      updateField(selected.id, { maxLength: Number(e.target.value) || undefined })
+                    }
+                  />
+                </WizardField>
+              </div>
+            ) : null}
             <label className="flex cursor-pointer items-center justify-between rounded-md border border-border bg-background px-3 py-2 text-sm">
               <span>Required field</span>
               <input
@@ -346,6 +450,16 @@ function FieldPreview({ field }: { field: FormField }) {
       );
     case "date":
       return <div className={`${cls} text-muted-foreground`}>YYYY-MM-DD</div>;
+    case "time":
+      return <div className={`${cls} text-muted-foreground`}>12:00 AM</div>;
+    case "datetime":
+      return <div className={`${cls} text-muted-foreground`}>YYYY-MM-DD · 12:00 AM</div>;
+    case "number":
+      return (
+        <div className={`${cls} text-muted-foreground`}>
+          {(field.numberMode ?? "integer") === "integer" ? "Whole number" : "0.00"}
+        </div>
+      );
     case "file":
       return (
         <div className={`${cls} flex items-center gap-2 text-muted-foreground`}>

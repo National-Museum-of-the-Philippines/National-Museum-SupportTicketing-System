@@ -18,6 +18,7 @@ import { useMessageNotifications } from "@/hooks/use-message-notifications";
 import { useMessageRealtime } from "@/hooks/use-message-realtime";
 import { usePokeNotifications } from "@/hooks/use-poke-notifications";
 import { api } from "@/lib/api/client";
+import { useLiveNotifications } from "@/lib/live-notifications";
 import { adminApprovalNotifications } from "@/lib/notifications";
 import { ensurePortalRole } from "@/lib/portal-guard";
 import { useAdminSession } from "@/lib/use-portal-session";
@@ -49,6 +50,7 @@ export const Route = createFileRoute("/admin")({
 function AdminLayout() {
   const { canQuery } = useAdminSession();
   useMessageRealtime("admin");
+  const liveNotifications = useLiveNotifications("admin");
   const pokeNotifications = usePokeNotifications("admin", canQuery);
   const messageNotifications = useMessageNotifications("admin", canQuery);
   const { data: tickets, isLoading: notificationsLoading } = useQuery({
@@ -59,11 +61,12 @@ function AdminLayout() {
 
   const notifications = useMemo(
     () => [
+      ...liveNotifications,
       ...messageNotifications,
       ...pokeNotifications,
       ...adminApprovalNotifications(tickets?.items ?? []),
     ],
-    [messageNotifications, pokeNotifications, tickets?.items],
+    [liveNotifications, messageNotifications, pokeNotifications, tickets?.items],
   );
 
   return (

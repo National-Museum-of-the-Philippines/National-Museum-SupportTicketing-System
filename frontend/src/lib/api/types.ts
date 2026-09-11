@@ -16,6 +16,8 @@ export type FormStatus = "draft" | "pending_review" | "published" | "disapproved
 
 export type TicketStatus =
   | "pending_approval"
+  | "for_client_approval"
+  | "for_process_owner"
   | "approved"
   | "rejected"
   | "open"
@@ -33,6 +35,7 @@ export type LiveFormField = {
   placeholder?: string;
   required?: boolean;
   options?: string[];
+  numberMode?: "integer" | "decimal";
 };
 
 export type PrintFieldPlacement = {
@@ -48,6 +51,15 @@ export type FormRecord = {
   title: string;
   description?: string;
   department?: string;
+  requireRecommendingOfficer?: boolean;
+  requireImmediateSupervisor?: boolean;
+  actionOfficerCount?: number;
+  actionOfficers?: Array<{
+    userId: string;
+    name: string;
+    email?: string;
+    division?: string;
+  }>;
   refNumber: string;
   effectivity: string;
   version: string;
@@ -83,6 +95,9 @@ export type TicketRecord = {
   attachmentName: string;
   attachmentMimeType: string;
   status: TicketStatus;
+  clientApprovalStage?: string | null;
+  processOwnerApprovalsDone?: number;
+  processOwnerPhase?: "approval" | "assignment" | string | null;
   rejectionReason?: string;
   assignedTo?: Array<{ _id: string; name: string; email: string; division: string }>;
   feedbackRating?: number | null;
@@ -141,6 +156,7 @@ export type MyFormsAnalytics = {
     lastSubmissionAt: string | null;
     updatedAt: string;
     reviewRemarks?: string;
+    monthlyTrend: Array<{ month: string; monthKey: string; count: number }>;
   }>;
 };
 

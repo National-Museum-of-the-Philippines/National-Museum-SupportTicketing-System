@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { FileText } from "lucide-react";
+import { useState } from "react";
 import {
   DataPanel,
   EmptyState,
@@ -7,6 +9,8 @@ import {
   StatusBadge,
   WorkspacePageHeader,
 } from "@/components/layout/workspace-ui";
+import { TicketPdfViewerDialog } from "@/components/tickets/TicketPdfViewerDialog";
+import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
 import { getTicketDivision } from "@/lib/ticket-details";
 import { useAdminSession } from "@/lib/use-portal-session";
@@ -17,6 +21,7 @@ export const Route = createFileRoute("/admin/requests/")({
 
 function RequestsPage() {
   const { canQuery } = useAdminSession();
+  const [viewTicket, setViewTicket] = useState<{ id: string; number: string } | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["all-tickets"],
     queryFn: () => api.listTickets(undefined, "admin"),
@@ -75,13 +80,23 @@ function RequestsPage() {
                       <StatusBadge status={t.status} />
                     </td>
                     <td className="px-4 py-3.5 sm:px-5">
-                      <Link
-                        to="/admin/requests/$ticketId"
-                        params={{ ticketId: t._id }}
-                        className="text-sm font-medium text-maroon hover:underline"
-                      >
-                        Manage →
-                      </Link>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setViewTicket({ id: t._id, number: t.ticketNumber })}
+                        >
+                          <FileText className="mr-1.5 h-3.5 w-3.5" />
+                          View file
+                        </Button>
+                        <Link
+                          to="/admin/requests/$ticketId"
+                          params={{ ticketId: t._id }}
+                          className="text-sm font-medium text-maroon hover:underline"
+                        >
+                          Manage →
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -90,6 +105,16 @@ function RequestsPage() {
           </table>
         </div>
       </DataPanel>
+
+      <TicketPdfViewerDialog
+        ticketId={viewTicket?.id ?? null}
+        ticketNumber={viewTicket?.number}
+        open={Boolean(viewTicket)}
+        onOpenChange={(open) => {
+          if (!open) setViewTicket(null);
+        }}
+        slot="admin"
+      />
     </div>
   );
 }

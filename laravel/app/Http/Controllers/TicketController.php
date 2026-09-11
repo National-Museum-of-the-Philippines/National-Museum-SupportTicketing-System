@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Validator;
 class TicketController extends Controller
 {
     private const TICKET_STATUSES = [
-        'pending_approval', 'approved', 'rejected', 'open', 'in_progress',
+        'pending_approval', 'for_client_approval', 'for_process_owner',
+        'approved', 'rejected', 'open', 'in_progress',
         'pending', 'resolved', 'closed', 'reopened',
     ];
 
@@ -70,8 +71,10 @@ class TicketController extends Controller
     {
         $ticketId = $request->query('ticketId');
         $ticketId = is_string($ticketId) && $ticketId !== '' ? $ticketId : null;
+        $division = $request->query('division');
+        $division = is_string($division) && $division !== '' ? $division : null;
 
-        return response()->json($this->tickets->listAssignees($ticketId));
+        return response()->json($this->tickets->listAssignees($ticketId, $division));
     }
 
     public function show(Request $request, string $id): JsonResponse

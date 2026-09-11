@@ -6,7 +6,12 @@ import {
   isSignatureImageValue,
   resolveSignatureImageSrc,
 } from "@/lib/form-field-values";
-import { PLACEMENT_CHECKMARK } from "@/lib/placement-choice-values";
+import {
+  extractOthersDetail,
+  isOthersBlankPlacementLabel,
+  isOthersOptionLabel,
+  PLACEMENT_CHECKMARK,
+} from "@/lib/placement-choice-values";
 import {
   displayValueForPlacement,
   resolveAnswerForVariable,
@@ -16,9 +21,18 @@ import {
 import { cn } from "@/lib/utils";
 
 type BuildPlacementOverlayOptions = {
-  /** Show field label at placement when there is no submitted answer (Records layout review). */
+  /**
+   * Always paint every mapped marker. Empty text/profile/signature slots show the
+   * same label Admin saw while dragging. Empty checkbox/radio boxes show ✓ only
+   * when `emptyChoiceAsCheckmark` is true (Form Builder / Records / Client preview).
+   */
   showLabelWhenEmpty?: boolean;
+  /** Match Form Builder: unselected option boxes still show a ✓ so the mapping is visible. */
+  emptyChoiceAsCheckmark?: boolean;
 };
+
+/** Gap after the Others checkbox so typed text sits at the start of the blank. */
+const OTHERS_BLANK_AUTO_OFFSET = "2.75em";
 
 function findFieldForPlacement(fields: LiveFormField[], placementVariable: string) {
   const inner = placementVariable.replace(/^\{\{|\}\}$/g, "");
@@ -30,6 +44,12 @@ function findFieldForPlacement(fields: LiveFormField[], placementVariable: strin
         field.variable.replace(/^\{\{|\}\}$/g, "") === inner,
     ) ?? null
   );
+}
+
+function sameVariable(a: string, b: string): boolean {
+  const innerA = a.replace(/^\{\{|\}\}$/g, "");
+  const innerB = b.replace(/^\{\{|\}\}$/g, "");
+  return a === b || innerA === innerB;
 }
 
 /**
@@ -44,15 +64,18 @@ function renderPlacementMarkers(
   answers: Record<string, unknown>,
   options?: BuildPlacementOverlayOptions,
 ) {
-  return placements
-    .map((placement) => {
-      const field = findFieldForPlacement(fields, placement.variable);
-      const raw = resolveAnswerForVariable(answers, placement.variable);
+  const markers: ReactNode[] = [];
+  const showLabelWhenEmpty = options?.showLabelWhenEmpty ?? true;
+  const emptyChoiceAsCheckmark = options?.emptyChoiceAsCheckmark ?? showLabelWhenEmpty;
 
-      if (field?.type === "signature" && isSignatureImageValue(raw)) {
-        const src = resolveSignatureImageSrc(raw);
-        if (!src) return null;
-        return (
+  for (const placement of placements) {
+    const field = findFieldForPlacement(fields, placement.variable);
+    const raw = resolveAnswerForVariable(answers, placement.variable);
+
+    if (isSignatureImageValue(raw)) {
+      const src = resolveSignatureImageSrc(raw);
+      if (src) {
+        markers.push(
           <span
             key={placement.id}
             className="dynamic-text-anchor pointer-events-none"
@@ -61,25 +84,29 @@ function renderPlacementMarkers(
           >
             <img
               src={src}
-              alt="Signature"
-              className="placement-signature-img block h-auto object-contain"
+              alt={placement.label || "Signature"}
+              className="placement-signature-img"
             />
-          </span>
+          </span>,
         );
+        continue;
       }
+    }
 
-      const text = displayValueForPlacement(
-        fields,
-        placement.variable,
-        placement.label,
-        answers,
-        options?.showLabelWhenEmpty,
-      );
-      if (!text) return null;
+    const text = displayValueForPlacement(
+      fields,
+      placement.variable,
+      placement.label,
+      answers,
+      showLabelWhenEmpty,
+      emptyChoiceAsCheckmark,
+    );
+    if (!text) continue;
 
       const isCheckmark = text === PLACEMENT_CHECKMARK;
+      const isOthersBlank = isOthersBlankPlacementLabel(placement.label);
 
-      return (
+      markers.push(
         <span
           key={placement.id}
           className="dynamic-text-anchor pointer-events-none bg-transparent"
@@ -90,14 +117,48 @@ function renderPlacementMarkers(
             className={cn(
               "dynamic-text bg-transparent",
               isCheckmark && "placement-checkmark",
+              isOthersBlank && "placement-others-blank",
             )}
           >
             {text}
           </span>
-        </span>
+        </span>,
       );
-    })
-    .filter(Boolean);
+
+    // Existing forms often only mapped the Others checkbox. Put typed text on the
+    // blank line to the right when no explicit "Other (blank)" marker exists.
+    if (
+      field &&
+      isOthersOptionLabel(placement.label) &&
+      isCheckmark &&
+      !emptyChoiceAsCheckmark
+    ) {
+      const detail = extractOthersDetail(raw);
+      const hasBlankMarker = placements.some(
+        (p) =>
+          sameVariable(p.variable, placement.variable) && isOthersBlankPlacementLabel(p.label),
+      );
+      if (detail && !hasBlankMarker) {
+        markers.push(
+          <span
+            key={`${placement.id}-others-blank`}
+            className="dynamic-text-anchor pointer-events-none bg-transparent"
+            style={{
+              left: `calc(${placement.xPct}% + ${OTHERS_BLANK_AUTO_OFFSET})`,
+              top: `${placement.yPct}%`,
+            }}
+            title={`${placement.label} (blank)`}
+          >
+            <span className="dynamic-text placement-others-blank bg-transparent">
+              {detail}
+            </span>
+          </span>,
+        );
+      }
+    }
+  }
+
+  return markers;
 }
 
 /** CSS vars Form Builder sets on the print canvas — viewers must set the same. */
@@ -115,24 +176,29 @@ export function placementCanvasStyle(
   } as CSSProperties;
 }
 
-/** Submitted answers at exact admin-mapped %. */
+/** Answers (when present) at exact admin-mapped %. Empty slots keep the mapped label. */
 export function buildPlacementOverlay(
   fields: LiveFormField[],
   placements: PrintFieldPlacement[],
   answers: Record<string, unknown>,
   _fontSize = DEFAULT_PRINT_PLACEMENT_FONT_SIZE,
+  overlayOptions?: BuildPlacementOverlayOptions,
 ): ReactNode {
-  const markers = renderPlacementMarkers(fields, placements, answers);
+  const markers = renderPlacementMarkers(fields, placements, answers, {
+    showLabelWhenEmpty: overlayOptions?.showLabelWhenEmpty ?? true,
+    emptyChoiceAsCheckmark: overlayOptions?.emptyChoiceAsCheckmark ?? false,
+  });
   if (!markers.length) return null;
   return <>{markers}</>;
 }
 
 /** Field labels at saved placements — Records/Admin layout review. */
-export function buildPlacementLayoutOverlay(form: FormRecord): ReactNode {
+export function buildPlacementLayoutOverlay(form: FormRecord, fields?: LiveFormField[]): ReactNode {
   const placements = resolveFormPlacements(form);
   if (!placements.length) return null;
-  const markers = renderPlacementMarkers(form.fields, placements, {}, {
+  const markers = renderPlacementMarkers(fields ?? form.fields, placements, {}, {
     showLabelWhenEmpty: true,
+    emptyChoiceAsCheckmark: true,
   });
   if (!markers.length) return null;
   return <>{markers}</>;

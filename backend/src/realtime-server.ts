@@ -60,7 +60,7 @@ async function authenticateSocket(socket: Socket): Promise<AuthUser | null> {
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { sub: string };
     const rows = await query<RowDataPacket[]>(
-      "SELECT id, email, name, role, division, active FROM users WHERE id = :id LIMIT 1",
+      "SELECT id, email, name, role, division, active FROM users_ WHERE id = :id LIMIT 1",
       { id: payload.sub },
     );
     const user = rows[0];
@@ -221,10 +221,23 @@ async function main() {
           return sendJson(res, 200, { ok: true });
         }
 
+        if (url === "/internal/emit/notification") {
+          const payload = (body.payload ?? body) as Record<string, unknown>;
+          const userIds = Array.isArray(body.userIds) ? body.userIds.map(String) : [];
+          const roles = Array.isArray(body.roles) ? body.roles.map(String) : [];
+          for (const id of userIds) {
+            if (id) io.to(`user:${id}`).emit("notification", payload);
+          }
+          for (const role of roles) {
+            if (role) io.to(`role:${role}`).emit("notification", payload);
+          }
+          return sendJson(res, 200, { ok: true });
+        }
+
         if (url === "/internal/refresh-rooms") {
           const userId = String(body.userId ?? "");
           const users = await query<RowDataPacket[]>(
-            "SELECT id, email, name, role, division FROM users WHERE id = :id LIMIT 1",
+            "SELECT id, email, name, role, division FROM users_ WHERE id = :id LIMIT 1",
             { id: userId },
           );
           const u = users[0];
@@ -238,6 +251,11 @@ async function main() {
             };
             const sockets = await io.in(`user:${userId}`).fetchSockets();
             for (const socket of sockets) {
+              socket.join(`role:${authUser.role}`);
+              if (authUser.role === "super_admin") {
+                socket.join("role:admin");
+                socket.join("role:record_management");
+              }
               await joinUserConversationRooms(socket, authUser);
             }
           }
@@ -269,6 +287,11 @@ async function main() {
   io.on("connection", async (socket) => {
     const user = socket.data.user as AuthUser;
     socket.join(`user:${user.id}`);
+    socket.join(`role:${user.role}`);
+    if (user.role === "super_admin") {
+      socket.join("role:admin");
+      socket.join("role:record_management");
+    }
     await joinUserConversationRooms(socket, user);
 
     socket.on("join:conversation", async (conversationId: string) => {

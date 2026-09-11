@@ -7,11 +7,17 @@ export type RealtimeMessageEvent = {
   message: ConversationMessageRecord;
 };
 
-export type RealtimeConversationEvent = {
-  conversationId: string;
-  lastMessageAt: string;
-  lastMessagePreview: string;
-  lastSenderName: string;
+export type RealtimeNotificationEvent = {
+  actorId?: string;
+  audience?: "admin" | "client" | "records" | string;
+  type?: string;
+  title: string;
+  message: string;
+  to?: string;
+  params?: Record<string, string>;
+  ticketId?: string;
+  formId?: string;
+  createdAt?: string;
 };
 
 const sockets = new Map<PortalSlot, Socket>();
@@ -36,6 +42,9 @@ export function getMessageSocket(slot: PortalSlot): Socket | null {
     path: "/socket.io",
     auth: { token },
     transports: ["websocket", "polling"],
+    timeout: 4000,
+    reconnectionDelay: 1500,
+    reconnectionAttempts: 8,
     autoConnect: true,
   });
 
@@ -84,4 +93,14 @@ export function onRealtimeMention(slot: PortalSlot, handler: (mention: MentionRe
   if (!socket) return () => undefined;
   socket.on("mention", handler);
   return () => socket.off("mention", handler);
+}
+
+export function onRealtimeNotification(
+  slot: PortalSlot,
+  handler: (event: RealtimeNotificationEvent) => void,
+) {
+  const socket = getMessageSocket(slot);
+  if (!socket) return () => undefined;
+  socket.on("notification", handler);
+  return () => socket.off("notification", handler);
 }

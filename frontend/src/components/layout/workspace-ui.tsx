@@ -388,11 +388,11 @@ export function DataPanel({
   );
 }
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status, label }: { status: string; label?: string }) {
   const tone = ticketStatusTone(status);
   return (
     <span className={cn("status-badge capitalize", statusToneClass[tone])}>
-      {formatTicketStatus(status)}
+      {label ?? formatTicketStatus(status)}
     </span>
   );
 }

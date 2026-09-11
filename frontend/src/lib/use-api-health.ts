@@ -10,7 +10,10 @@ export function useApiHealth() {
 
     const check = async () => {
       try {
-        const res = await fetch("/api/health", { cache: "no-store" });
+        const res = await fetch("/api/health", {
+          cache: "no-store",
+          signal: AbortSignal.timeout(4000),
+        });
         if (!cancelled) setStatus(res.ok ? "ok" : "down");
       } catch {
         if (!cancelled) setStatus("down");

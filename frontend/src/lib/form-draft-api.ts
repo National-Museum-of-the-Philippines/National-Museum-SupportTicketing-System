@@ -22,6 +22,22 @@ export function draftToApiBody(draft: FormDraft) {
     refNumber: draft.refNumber,
     effectivity: draft.effectivity,
     version: draft.version,
+    department: (draft.department ?? "").trim(),
+    requireRecommendingOfficer: Boolean(draft.requireRecommendingOfficer),
+    requireImmediateSupervisor: Boolean(draft.requireImmediateSupervisor),
+    actionOfficers: (draft.actionOfficers ?? [])
+      .filter((o) => o.userId?.trim())
+      .map((o) => ({
+        userId: o.userId.trim(),
+        name: (o.name ?? "").trim(),
+        email: (o.email ?? "").trim(),
+        division: (o.division ?? "").trim(),
+      })),
+    actionOfficerCount: Math.max(
+      1,
+      (draft.actionOfficers ?? []).filter((o) => o.userId?.trim()).length ||
+        Math.floor(Number(draft.actionOfficerCount) || 1),
+    ),
     fields: normalizeFormFields(draft.fields),
     signatories: draft.signatories,
     printTemplate,

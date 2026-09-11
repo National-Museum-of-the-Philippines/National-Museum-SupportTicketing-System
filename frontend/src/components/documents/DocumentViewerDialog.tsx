@@ -50,7 +50,7 @@ export function DocumentViewerDialog({
         <div className="min-h-0 flex-1 overflow-auto bg-muted/30 p-4 sm:p-5">
           <div
             className={cn(
-              "overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm",
+              "overflow-visible rounded-xl border border-border/80 bg-card shadow-sm",
               cardClassName,
             )}
           >

@@ -25,6 +25,39 @@ import { mergeRequesterProfileIntoAnswers } from "@/lib/profile-placement-fields
 import { dataUrlToFile } from "@/lib/upload-data-url";
 import { isAllowedUpload, MAX_UPLOAD_MB, uploadTooLarge } from "@/lib/upload-limits";
 
+const SUBMIT_ANSWERS_PREFIX = "nmp-submit-answers:";
+
+function submitAnswersKey(formId: string, userId?: string) {
+  return `${SUBMIT_ANSWERS_PREFIX}${userId ?? "anon"}:${formId}`;
+}
+
+function loadSubmitAnswers(formId: string, userId?: string): Record<string, unknown> | null {
+  if (typeof sessionStorage === "undefined" || !formId) return null;
+  try {
+    const raw = sessionStorage.getItem(submitAnswersKey(formId, userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function saveSubmitAnswers(formId: string, userId: string | undefined, answers: Record<string, unknown>) {
+  if (typeof sessionStorage === "undefined" || !formId) return;
+  try {
+    sessionStorage.setItem(submitAnswersKey(formId, userId), JSON.stringify(answers));
+  } catch {
+    // Quota exceeded — keep in-memory answers only.
+  }
+}
+
+function clearSubmitAnswers(formId: string, userId?: string) {
+  if (typeof sessionStorage === "undefined" || !formId) return;
+  sessionStorage.removeItem(submitAnswersKey(formId, userId));
+}
+
 type ClientSubmitFormProps = {
   initialFormId?: string;
   /** Where to go after a successful submit (defaults to client My Requests). */
@@ -66,33 +99,54 @@ export function ClientSubmitForm({
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
   const answersRef = useRef(answers);
   answersRef.current = answers;
+  const restoredForForm = useRef<string | null>(null);
+  const profileAppliedFor = useRef<string | null>(null);
 
   const { data: formsData, isLoading: formsLoading } = useQuery({
     queryKey: ["published-forms"],
     queryFn: () => api.publishedForms(),
-    staleTime: 5 * 60_000,
+    staleTime: Number.POSITIVE_INFINITY,
   });
+
+  const forms = formsData?.items ?? [];
 
   const { data: formData, isLoading: formLoading } = useQuery({
     queryKey: ["published-form", selectedFormId],
     queryFn: () => api.getPublishedForm(selectedFormId),
     enabled: Boolean(selectedFormId),
-    staleTime: 5 * 60_000,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 
   const { data: requesterData, isLoading: requesterLoading } = useQuery({
     queryKey: ["requester-profile", "client", user?.id],
     queryFn: () => api.requesterProfile("client"),
     enabled: Boolean(user?.id),
-    staleTime: 5 * 60_000,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 
   useEffect(() => {
     if (initialFormId) setSelectedFormId(initialFormId);
   }, [initialFormId]);
 
+  // Restore in-progress answers first so a remount does not wipe the fill.
+  useEffect(() => {
+    if (!selectedFormId) return;
+    if (restoredForForm.current === selectedFormId) return;
+    restoredForForm.current = selectedFormId;
+    const saved = loadSubmitAnswers(selectedFormId, user?.id);
+    if (saved && Object.keys(saved).length > 0) {
+      profileAppliedFor.current = user?.id ?? "restored";
+      setAnswers(saved);
+    }
+  }, [selectedFormId, user?.id]);
+
+  useEffect(() => {
+    if (!selectedFormId || restoredForForm.current !== selectedFormId) return;
+    if (Object.keys(answers).length === 0) return;
+    saveSubmitAnswers(selectedFormId, user?.id, answers);
+  }, [answers, selectedFormId, user?.id]);
+
   // Apply PAMANA profile once — do not re-merge on every refetch (that fights typing).
-  const profileAppliedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!requesterData?.found || !requesterData.values || !user?.id) return;
     if (profileAppliedFor.current === user.id) return;
@@ -188,6 +242,9 @@ export function ClientSubmitForm({
       toast.success("Request submitted", {
         description: `Ticket ${res.ticket.ticketNumber} is pending admin approval.`,
       });
+      if (selectedFormId) clearSubmitAnswers(selectedFormId, user?.id);
+      restoredForForm.current = null;
+      profileAppliedFor.current = null;
       setAnswers({});
       void queryClient.invalidateQueries({ queryKey: ["my-tickets"] });
       void navigate({ to: successTo });
@@ -224,7 +281,6 @@ export function ClientSubmitForm({
     return <PanelLoading label="Loading available forms…" />;
   }
 
-  const forms = formsData?.items ?? [];
   if (forms.length === 0) {
     return (
       <>
@@ -258,8 +314,10 @@ export function ClientSubmitForm({
             value={selectedFormId}
             onChange={(e) => {
               setSelectedFormId(e.target.value);
+              restoredForForm.current = null;
+              profileAppliedFor.current = null;
               // Keep PAMANA profile fields when switching forms.
-              setAnswers((prev) => {
+              setAnswers(() => {
                 if (!requesterData?.found || !requesterData.values) return {};
                 return { ...requesterData.values };
               });

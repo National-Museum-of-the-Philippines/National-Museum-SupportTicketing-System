@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { FileText } from "lucide-react";
+import { FileText, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import {
   ActionPanel,
@@ -16,12 +16,49 @@ import { TicketPdfViewerDialog } from "@/components/tickets/TicketPdfViewerDialo
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/api/client";
+import type { TicketRecord } from "@/lib/api/types";
 import { ADMIN_REQUESTS } from "@/lib/navigation";
 import { useAdminSession } from "@/lib/use-portal-session";
 
 export const Route = createFileRoute("/admin/approvals")({
   component: ApprovalsPage,
 });
+
+type PendingTicketsData = {
+  items: TicketRecord[];
+  total: number;
+  pendingCount: number;
+};
+
+function isReadyToAssign(ticket: TicketRecord): boolean {
+  return ticket.processOwnerPhase === "assignment";
+}
+
+function patchPendingTicket(qc: ReturnType<typeof useQueryClient>, ticket: TicketRecord) {
+  const apply = (old: PendingTicketsData | undefined) => {
+    if (!old?.items) return old;
+    return {
+      ...old,
+      items: old.items.map((item) => (item._id === ticket._id ? { ...item, ...ticket } : item)),
+    };
+  };
+  qc.setQueryData<PendingTicketsData>(["pending-tickets"], apply);
+  qc.setQueryData<PendingTicketsData>(["admin-tickets-pending"], apply);
+}
+
+function markReadyToAssign(qc: ReturnType<typeof useQueryClient>, ticketId: string) {
+  const apply = (old: PendingTicketsData | undefined) => {
+    if (!old?.items) return old;
+    return {
+      ...old,
+      items: old.items.map((item) =>
+        item._id === ticketId ? { ...item, processOwnerPhase: "assignment" as const } : item,
+      ),
+    };
+  };
+  qc.setQueryData<PendingTicketsData>(["pending-tickets"], apply);
+  qc.setQueryData<PendingTicketsData>(["admin-tickets-pending"], apply);
+}
 
 function invalidateAdminTicketQueries(qc: ReturnType<typeof useQueryClient>) {
   void qc.invalidateQueries({ queryKey: ["pending-tickets"] });
@@ -50,12 +87,25 @@ function ApprovalsPage() {
 
   const approve = useMutation({
     mutationFn: (id: string) => api.approveTicket(id, "admin"),
-    onSuccess: () => {
-      toast.success("Request approved");
+    onSuccess: (res) => {
+      const ticket = res.ticket;
+      if (ticket) patchPendingTicket(qc, ticket);
+      toast.success(
+        ticket?.processOwnerPhase === "assignment"
+          ? "Approved — ready for task assignment"
+          : "Request approved",
+      );
       invalidateAdminTicketQueries(qc);
     },
-    onError: (err: Error) => {
-      toast.error(err instanceof ApiError ? err.message : "Could not approve request.");
+    onError: (err: Error, id) => {
+      const message = err instanceof ApiError ? err.message : "Could not approve request.";
+      if (/ready for task assignment/i.test(message)) {
+        markReadyToAssign(qc, id);
+        toast.info("Already approved — assign personnel next");
+        invalidateAdminTicketQueries(qc);
+        return;
+      }
+      toast.error(message);
     },
   });
 
@@ -147,7 +197,10 @@ function ApprovalsPage() {
                     <td className="px-4 py-3.5 sm:px-5">{t.creatorName}</td>
                     <td className="px-4 py-3.5 sm:px-5">{t.division || "—"}</td>
                     <td className="px-4 py-3.5 sm:px-5">
-                      <StatusBadge status={t.status} />
+                      <StatusBadge
+                        status={t.status}
+                        label={isReadyToAssign(t) ? "Ready to assign" : undefined}
+                      />
                     </td>
                     <td className="px-4 py-3.5 sm:px-5">
                       <div className="flex flex-wrap gap-2">
@@ -159,13 +212,22 @@ function ApprovalsPage() {
                           <FileText className="mr-1.5 h-3.5 w-3.5" />
                           View file
                         </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => approve.mutate(t._id)}
-                          disabled={approve.isPending || reject.isPending}
-                        >
-                          Approve
-                        </Button>
+                        {isReadyToAssign(t) ? (
+                          <Button size="sm" asChild>
+                            <Link to="/admin/requests/$ticketId" params={{ ticketId: t._id }}>
+                              <UserCheck className="mr-1.5 h-3.5 w-3.5" />
+                              Assign
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => approve.mutate(t._id)}
+                            disabled={approve.isPending || reject.isPending}
+                          >
+                            {approve.isPending && approve.variables === t._id ? "Approving…" : "Approve"}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"

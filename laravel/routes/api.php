@@ -31,6 +31,7 @@ Route::middleware('jwt.auth')->prefix('forms')->group(function () {
     Route::middleware('role:admin')->group(function () {
         Route::get('/mine/analytics', [FormController::class, 'mineAnalytics']);
         Route::get('/mine', [FormController::class, 'mine']);
+        Route::get('/action-officer-staff', [FormController::class, 'actionOfficerStaff']);
         Route::post('/', [FormController::class, 'store']);
         Route::post('/submit-to-records', [FormController::class, 'submitToRecords']);
         Route::patch('/{id}', [FormController::class, 'update']);

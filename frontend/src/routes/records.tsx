@@ -5,8 +5,10 @@ import { BookOpen, Clock, History, LayoutDashboard } from "lucide-react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { PortalGateCard } from "@/components/layout/workspace-ui";
 import { Button } from "@/components/ui/button";
+import { useMessageRealtime } from "@/hooks/use-message-realtime";
 import { api } from "@/lib/api/client";
 import { ensurePortalRole } from "@/lib/portal-guard";
+import { useLiveNotifications } from "@/lib/live-notifications";
 import { recordsPendingNotifications } from "@/lib/notifications";
 import { useRecordsSession } from "@/lib/use-portal-session";
 import {
@@ -31,6 +33,8 @@ export const Route = createFileRoute("/records")({
 
 function RecordsLayout() {
   const { user, sessionReady, logout, canQuery } = useRecordsSession();
+  useMessageRealtime("records");
+  const liveNotifications = useLiveNotifications("records");
 
   const {
     data,
@@ -40,16 +44,19 @@ function RecordsLayout() {
     queryKey: ["records-dashboard"],
     queryFn: () => api.recordsDashboard(),
     enabled: canQuery,
-    staleTime: 60_000,
+    staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
     refetchInterval: false,
   });
 
   const pendingCount = canQuery && !isError ? data?.pendingCount : undefined;
   const notifications = useMemo(
-    () =>
-      canQuery && !isError ? recordsPendingNotifications(data?.recentPending ?? []) : [],
-    [canQuery, isError, data?.recentPending],
+    () => [
+      ...liveNotifications,
+      ...(canQuery && !isError ? recordsPendingNotifications(data?.recentPending ?? []) : []),
+    ],
+    [liveNotifications, canQuery, isError, data?.recentPending],
   );
 
   if (sessionReady && user && !isRecordsRole(user.role)) {

@@ -1,9 +1,23 @@
-import * as pdfjs from "pdfjs-dist";
+type Pdfjs = typeof import("pdfjs-dist");
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+let pdfjsPromise: Promise<Pdfjs> | null = null;
+
+/** Lazy-load pdf.js only in the browser — never during SSR (DOMMatrix). */
+async function getPdfjs(): Promise<Pdfjs> {
+  if (typeof window === "undefined") {
+    throw new Error("PDF rendering is only available in the browser.");
+  }
+  if (!pdfjsPromise) {
+    pdfjsPromise = import("pdfjs-dist").then((pdfjs) => {
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+        "pdfjs-dist/build/pdf.worker.min.mjs",
+        import.meta.url,
+      ).toString();
+      return pdfjs;
+    });
+  }
+  return pdfjsPromise;
+}
 
 export function isPdfFile(file: File): boolean {
   return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
@@ -11,6 +25,7 @@ export function isPdfFile(file: File): boolean {
 
 /** Total rendered height (px) when the PDF is scaled to `displayWidth`. */
 export async function getPdfDisplayHeight(blob: Blob, displayWidth: number): Promise<number> {
+  const pdfjs = await getPdfjs();
   const data = new Uint8Array(await blob.arrayBuffer());
   const doc = await pdfjs.getDocument({ data }).promise;
   let totalHeight = 0;
@@ -26,7 +41,7 @@ export async function getPdfDisplayHeight(blob: Blob, displayWidth: number): Pro
 }
 
 async function renderPdfPageToCanvas(
-  page: pdfjs.PDFPageProxy,
+  page: import("pdfjs-dist").PDFPageProxy,
   maxWidth: number,
 ): Promise<HTMLCanvasElement> {
   const baseViewport = page.getViewport({ scale: 1 });
@@ -47,6 +62,7 @@ export async function pdfPageToDataUrl(
   pageNumber: number,
   options?: { maxWidth?: number },
 ): Promise<{ dataUrl: string; pageCount: number }> {
+  const pdfjs = await getPdfjs();
   const maxWidth = options?.maxWidth ?? 1600;
   const data = new Uint8Array(await file.arrayBuffer());
   const doc = await pdfjs.getDocument({ data }).promise;
@@ -65,6 +81,7 @@ export async function pdfAllPagesStackedToDataUrl(
   file: File,
   options?: { maxWidth?: number },
 ): Promise<{ dataUrl: string; pageCount: number }> {
+  const pdfjs = await getPdfjs();
   const maxWidth = options?.maxWidth ?? 1600;
   const data = new Uint8Array(await file.arrayBuffer());
   const doc = await pdfjs.getDocument({ data }).promise;
@@ -127,6 +144,7 @@ export async function pdfBlobAllPagesToDataUrls(
   blob: Blob,
   options?: { maxWidth?: number },
 ): Promise<{ dataUrls: string[]; pageCount: number }> {
+  const pdfjs = await getPdfjs();
   // Higher default width keeps glyph spacing even when zoomed in the viewer.
   const maxWidth = options?.maxWidth ?? 2000;
   const data = new Uint8Array(await blob.arrayBuffer());

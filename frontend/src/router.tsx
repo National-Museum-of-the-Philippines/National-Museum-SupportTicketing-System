@@ -7,7 +7,9 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    defaultPreloadStaleTime: 30_000,
+    // Avoid aggressive route preload refetch while the user is editing forms.
+    defaultPreloadStaleTime: Number.POSITIVE_INFINITY,
+    defaultPreload: false,
   });
 
   return router;

@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { FileText } from "lucide-react";
+import { useState } from "react";
 import { api } from "@/lib/api/client";
 import {
   ActionLink,
@@ -9,10 +11,11 @@ import {
   StatusBadge,
   WorkspacePageHeader,
 } from "@/components/layout/workspace-ui";
+import { TicketPdfViewerDialog } from "@/components/tickets/TicketPdfViewerDialog";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { ADMIN_MY_REQUESTS_SUBMIT } from "@/lib/navigation";
 import { ticketNeedsFeedback, ticketReadyToClose, ticketCanMarkComplete } from "@/lib/ticket-workflow";
 import { cn, formatAssignedPersonnel } from "@/lib/utils";
-import { buttonVariants } from "@/components/ui/button";
 import { useAdminSession } from "@/lib/use-portal-session";
 
 export const Route = createFileRoute("/admin/my-requests/")({
@@ -24,6 +27,7 @@ export const Route = createFileRoute("/admin/my-requests/")({
  */
 function AdminMyRequestsPage() {
   const { canQuery } = useAdminSession();
+  const [viewTicket, setViewTicket] = useState<{ id: string; number: string } | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["my-tickets", "admin"],
     queryFn: () => api.myTickets("admin"),
@@ -97,42 +101,52 @@ function AdminMyRequestsPage() {
                       })}
                     </td>
                     <td className="px-6 py-3">
-                      {ticketCanMarkComplete(t) ? (
-                        <Link
-                          to="/admin/my-requests/$ticketId"
-                          params={{ ticketId: t._id }}
-                          className="text-sm font-medium text-maroon hover:underline"
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setViewTicket({ id: t._id, number: t.ticketNumber })}
                         >
-                          Mark complete →
-                        </Link>
-                      ) : ticketNeedsFeedback(t) ? (
-                        <Link
-                          to="/admin/my-requests/$ticketId"
-                          params={{ ticketId: t._id }}
-                          className="text-sm font-medium text-maroon hover:underline"
-                        >
-                          Submit feedback →
-                        </Link>
-                      ) : ticketReadyToClose(t) ? (
-                        <Link
-                          to="/admin/my-requests/$ticketId"
-                          params={{ ticketId: t._id }}
-                          className="text-sm font-medium text-maroon hover:underline"
-                        >
-                          Close request →
-                        </Link>
-                      ) : (
-                        <Link
-                          to="/admin/my-requests/$ticketId"
-                          params={{ ticketId: t._id }}
-                          className={cn(
-                            buttonVariants({ variant: "outline", size: "sm" }),
-                            "shadow-sm",
-                          )}
-                        >
-                          View details
-                        </Link>
-                      )}
+                          <FileText className="mr-1.5 h-3.5 w-3.5" />
+                          View file
+                        </Button>
+                        {ticketCanMarkComplete(t) ? (
+                          <Link
+                            to="/admin/my-requests/$ticketId"
+                            params={{ ticketId: t._id }}
+                            className="text-sm font-medium text-maroon hover:underline"
+                          >
+                            Mark complete →
+                          </Link>
+                        ) : ticketNeedsFeedback(t) ? (
+                          <Link
+                            to="/admin/my-requests/$ticketId"
+                            params={{ ticketId: t._id }}
+                            className="text-sm font-medium text-maroon hover:underline"
+                          >
+                            Submit feedback →
+                          </Link>
+                        ) : ticketReadyToClose(t) ? (
+                          <Link
+                            to="/admin/my-requests/$ticketId"
+                            params={{ ticketId: t._id }}
+                            className="text-sm font-medium text-maroon hover:underline"
+                          >
+                            Close request →
+                          </Link>
+                        ) : (
+                          <Link
+                            to="/admin/my-requests/$ticketId"
+                            params={{ ticketId: t._id }}
+                            className={cn(
+                              buttonVariants({ variant: "outline", size: "sm" }),
+                              "shadow-sm",
+                            )}
+                          >
+                            View details
+                          </Link>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -141,6 +155,16 @@ function AdminMyRequestsPage() {
           </div>
         )}
       </DataPanel>
+
+      <TicketPdfViewerDialog
+        ticketId={viewTicket?.id ?? null}
+        ticketNumber={viewTicket?.number}
+        open={Boolean(viewTicket)}
+        onOpenChange={(open) => {
+          if (!open) setViewTicket(null);
+        }}
+        slot="admin"
+      />
     </div>
   );
 }

@@ -8,6 +8,14 @@ export function isChoiceFieldType(type: string): boolean {
   return type === "checkbox" || type === "radio";
 }
 
+export function isOthersOptionLabel(label: string): boolean {
+  return /^others?$/i.test(label.trim());
+}
+
+export function isOthersBlankPlacementLabel(placementLabel: string): boolean {
+  return /^others?\s*\(\s*blank\s*\)$/i.test(placementLabel.trim());
+}
+
 export function resolvePlacementOption(
   field: { type: string; label: string; options?: string[] },
   placementLabel: string,
@@ -19,6 +27,8 @@ export function resolvePlacementOption(
 
   const label = placementLabel.trim();
   if (!label) return null;
+
+  if (isOthersBlankPlacementLabel(label)) return null;
 
   const exact = options.find((option) => option === label);
   if (exact) return exact;
@@ -52,6 +62,22 @@ export function isChoiceOptionSelected(value: unknown, option: string): boolean 
   return normalizeOption(String(value)) === target;
 }
 
+export function extractOthersDetail(value: unknown): string {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const text = String(item);
+      const match = text.match(/^others?\s*:\s*(.+)$/i);
+      if (match?.[1]?.trim()) return match[1].trim();
+    }
+    return "";
+  }
+  if (typeof value === "string") {
+    const match = value.match(/^others?\s*:\s*(.+)$/i);
+    if (match?.[1]?.trim()) return match[1].trim();
+  }
+  return "";
+}
+
 export function displayValueForChoicePlacement(
   field: { type: string; label: string; options?: string[] },
   placementLabel: string,
@@ -60,8 +86,16 @@ export function displayValueForChoicePlacement(
 ): string | null {
   if (!isChoiceFieldType(field.type)) return null;
 
+  if (isOthersBlankPlacementLabel(placementLabel)) {
+    const hasOthers = (field.options ?? []).some((option) => isOthersOptionLabel(option));
+    if (!hasOthers) return "";
+    const detail = extractOthersDetail(value);
+    if (detail) return detail;
+    return showMarkerWhenEmpty ? "…" : "";
+  }
+
   const option = resolvePlacementOption(field, placementLabel);
-  if (!option) return "";
+  if (!option) return null;
 
   if (isChoiceOptionSelected(value, option)) return PLACEMENT_CHECKMARK;
   if (showMarkerWhenEmpty) return PLACEMENT_CHECKMARK;

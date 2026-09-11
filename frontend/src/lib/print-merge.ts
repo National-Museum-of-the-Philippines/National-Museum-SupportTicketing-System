@@ -33,6 +33,10 @@ function sampleValueForField(f: FormField): string {
       return (f.options && f.options[0]) || "—";
     case "date":
       return "May 14, 2026";
+    case "time":
+      return "2:30 PM";
+    case "datetime":
+      return "2026-05-14 2:30 PM";
     case "number":
       return "42";
     case "email":

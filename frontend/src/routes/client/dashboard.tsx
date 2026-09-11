@@ -44,7 +44,9 @@ function ClientDashboardPage() {
 
   const items = tickets?.items ?? [];
   const active = items.filter((t) => !["closed", "rejected"].includes(t.status)).length;
-  const pending = items.filter((t) => t.status === "pending_approval").length;
+  const pending = items.filter((t) =>
+    ["pending_approval", "for_process_owner", "for_client_approval"].includes(t.status),
+  ).length;
   const completed = items.filter((t) => t.status === "closed").length;
   const needsFeedback = countTicketsNeedingFeedback(items);
   const canMarkComplete = items.filter(ticketCanMarkComplete).length;

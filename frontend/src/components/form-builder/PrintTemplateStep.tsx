@@ -36,7 +36,7 @@ import {
   resolvePlacementOption,
 } from "@/lib/placement-choice-values";
 import { api } from "@/lib/api/client";
-import { DEFAULT_PROFILE_PLACEMENT_FIELDS } from "@/lib/profile-placement-fields";
+import { getMissingProfilePlacements } from "@/lib/profile-placement-fields";
 import {
   isAllowedPrintTemplate,
   MAX_UPLOAD_MB,
@@ -83,15 +83,45 @@ export function PrintTemplateStep({ draft, update }: PrintTemplateStepProps) {
     () =>
       draft.fields.flatMap((field) => {
         if (isChoiceFieldType(field.type) && (field.options?.length ?? 0) > 0) {
-          return (field.options ?? []).map((option) => ({
-            variable: field.variable,
-            label: option,
-            hint: field.label,
-          }));
+          return (field.options ?? []).flatMap((option) => {
+            const items = [
+              {
+                variable: field.variable,
+                label: option,
+                hint: field.label,
+                option: true,
+              },
+            ];
+            // Separate marker for the underscore line beside Others.
+            if (/^others?$/i.test(option.trim())) {
+              items.push({
+                variable: field.variable,
+                label: `${option.trim()} (blank)`,
+                hint: `${field.label} — typed text on the blank`,
+                option: true,
+              });
+            }
+            return items;
+          });
         }
-        return [{ variable: field.variable, label: field.label, hint: field.label }];
+        return [{ variable: field.variable, label: field.label, hint: field.label, option: false }];
       }),
     [draft.fields],
+  );
+
+  const unplacedProfileFields = useMemo(
+    () => getMissingProfilePlacements(placements),
+    [placements],
+  );
+
+  const unplacedFormFields = useMemo(
+    () =>
+      variables.filter((item) =>
+        item.option
+          ? !placements.some((p) => p.variable === item.variable && p.label === item.label)
+          : !placements.some((p) => p.variable === item.variable),
+      ),
+    [variables, placements],
   );
 
   const sampleValues = useMemo(() => buildSampleSubmissionValues(draft.fields), [draft.fields]);
@@ -114,9 +144,17 @@ export function PrintTemplateStep({ draft, update }: PrintTemplateStepProps) {
   };
 
   const addPlacement = (variable: string, label: string, xPct: number, yPct: number) => {
+    const current = placementsRef.current;
+    const isChoiceOption = variables.some(
+      (v) => v.option && v.variable === variable && v.label === label,
+    );
+    const already = isChoiceOption
+      ? current.some((p) => p.variable === variable && p.label === label)
+      : current.some((p) => p.variable === variable);
+    if (already) return;
     const id = `pl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     setPlacements([
-      ...placementsRef.current,
+      ...current,
       { id, variable, label, xPct: clampPct(xPct), yPct: clampPct(yPct) },
     ]);
   };
@@ -314,56 +352,75 @@ export function PrintTemplateStep({ draft, update }: PrintTemplateStepProps) {
         <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
           <div className="wizard-card flex flex-col p-4">
             <p className="text-sm font-medium">Fields to place</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">Drag onto the form →</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Drag onto the form — each placed field leaves this list.
+            </p>
             <div className="mt-3 max-h-64 space-y-3 overflow-y-auto lg:max-h-[min(60vh,520px)]">
-              <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Requester profile
+              {unplacedProfileFields.length === 0 && unplacedFormFields.length === 0 ? (
+                <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-4 text-center text-xs text-muted-foreground">
+                  {variables.length === 0
+                    ? "Add fields in the Fields step first."
+                    : "All fields are on the template. Remove a marker to put it back here."}
                 </p>
-                <div className="space-y-2">
-                  {DEFAULT_PROFILE_PLACEMENT_FIELDS.map((v) => (
-                    <div
-                      key={v.variable}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData(
-                          "application/json",
-                          JSON.stringify({
-                            variable: v.variable,
-                            label: v.label,
-                            hint: v.hint,
-                          }),
-                        );
-                        e.dataTransfer.effectAllowed = "copy";
-                      }}
-                      className="flex cursor-grab gap-2 rounded-md border border-maroon/25 bg-maroon/5 px-2.5 py-2 active:cursor-grabbing hover:border-maroon/50 hover:bg-maroon/10"
-                    >
-                      <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{v.label}</div>
-                        <div className="mt-0.5 truncate font-mono text-[10px] text-maroon">
-                          {v.variable}
-                        </div>
-                        <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                          {v.hint}
+              ) : null}
+
+              {unplacedProfileFields.length > 0 ? (
+                <div>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Requester profile
+                  </p>
+                  <div className="space-y-2">
+                    {unplacedProfileFields.map((v) => (
+                      <div
+                        key={v.variable}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData(
+                            "application/json",
+                            JSON.stringify({
+                              variable: v.variable,
+                              label: v.label,
+                              hint: v.hint,
+                            }),
+                          );
+                          e.dataTransfer.effectAllowed = "copy";
+                        }}
+                        className="flex cursor-grab gap-2 rounded-md border border-maroon/25 bg-maroon/5 px-2.5 py-2 active:cursor-grabbing hover:border-maroon/50 hover:bg-maroon/10"
+                      >
+                        <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium">{v.label}</div>
+                          <div className="mt-0.5 truncate font-mono text-[10px] text-maroon">
+                            {v.variable}
+                          </div>
+                          <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                            {v.hint}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : null}
 
-              <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Form fields
-                </p>
-                {variables.length === 0 ? (
-                  <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-4 text-center text-xs text-muted-foreground">
-                    Add fields in the Fields step first.
+              {variables.length === 0 ? (
+                unplacedProfileFields.length > 0 ? (
+                  <div>
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Form fields
+                    </p>
+                    <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-4 text-center text-xs text-muted-foreground">
+                      Add fields in the Fields step first.
+                    </p>
+                  </div>
+                ) : null
+              ) : unplacedFormFields.length > 0 ? (
+                <div>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Form fields
                   </p>
-                ) : (
                   <div className="space-y-2">
-                    {variables.map((v) => (
+                    {unplacedFormFields.map((v) => (
                       <div
                         key={`${v.variable}:${v.label}`}
                         draggable
@@ -388,8 +445,8 @@ export function PrintTemplateStep({ draft, update }: PrintTemplateStepProps) {
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -591,13 +648,20 @@ export function PrintTemplateStep({ draft, update }: PrintTemplateStepProps) {
                       >
                         {placements.map((p) => {
                           const field = draft.fields.find((item) => item.variable === p.variable);
-                          const preview =
-                            field && isChoiceFieldType(field.type)
-                              ? resolvePlacementOption(field, p.label)
-                                ? PLACEMENT_CHECKMARK
-                                : ""
-                              : sampleValues[p.variable]?.replace(/\s*\(sample\)\s*$/i, "").trim() ||
-                                p.label;
+                          let preview = p.label;
+                          if (field && isChoiceFieldType(field.type)) {
+                            if (/^others?\s*\(\s*blank\s*\)$/i.test(p.label.trim())) {
+                              preview = "…";
+                            } else if (resolvePlacementOption(field, p.label)) {
+                              preview = PLACEMENT_CHECKMARK;
+                            } else {
+                              preview = "";
+                            }
+                          } else {
+                            preview =
+                              sampleValues[p.variable]?.replace(/\s*\(sample\)\s*$/i, "").trim() ||
+                              p.label;
+                          }
                           return (
                             <button
                               key={p.id}

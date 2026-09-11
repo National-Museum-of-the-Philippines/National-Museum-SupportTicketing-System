@@ -75,7 +75,7 @@ export function clientTicketNotifications(
       ticketCanMarkComplete(t) ||
       ticketNeedsFeedback(t) ||
       ticketReadyToClose(t) ||
-      ["pending_approval", "rejected", "reopened", "approved"].includes(t.status),
+      ["pending_approval", "for_process_owner", "for_client_approval", "rejected", "reopened", "approved"].includes(t.status),
   );
 
   return actionable.slice(0, 8).map((t) => ({
@@ -96,6 +96,10 @@ function clientStatusMessage(
   switch (status) {
     case "pending_approval":
       return `${formTitle} — awaiting admin approval`;
+    case "for_client_approval":
+      return `${formTitle} — for client approval`;
+    case "for_process_owner":
+      return `${formTitle} — for process owner`;
     case "approved":
       return `${formTitle} — approved by admin`;
     case "open":

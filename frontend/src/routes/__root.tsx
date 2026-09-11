@@ -11,7 +11,6 @@ import {
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/lib/auth";
 import { LOGIN } from "@/lib/navigation";
-import { NavigationProgress } from "@/components/layout/PageTransition";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -97,10 +96,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/png", href: "/nmp-logo.png" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap",
-      },
     ],
   }),
   shellComponent: RootShell,
@@ -129,7 +124,6 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <NavigationProgress />
         <Outlet />
         <Toaster richColors position="top-center" />
       </AuthProvider>

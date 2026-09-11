@@ -11,7 +11,10 @@ use Illuminate\Support\Facades\DB;
 
 class FormService
 {
-    public function __construct(private ActivityService $activity) {}
+    public function __construct(
+        private ActivityService $activity,
+        private RealtimeService $realtime,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $body
@@ -20,6 +23,7 @@ class FormService
     public function createForm(AuthUser $user, array $body): array
     {
         $body = $this->normalizeFormBody($body);
+        $actionOfficers = $this->normalizeActionOfficers($body['actionOfficers'] ?? []);
 
         $form = Form::create([
             'title' => (string) ($body['title'] ?? ''),
@@ -37,6 +41,10 @@ class FormService
             'status' => 'draft',
             'description' => (string) ($body['description'] ?? ''),
             'department' => (string) ($body['department'] ?? ''),
+            'require_recommending_officer' => (bool) ($body['requireRecommendingOfficer'] ?? false),
+            'require_immediate_supervisor' => (bool) ($body['requireImmediateSupervisor'] ?? false),
+            'action_officers' => $actionOfficers,
+            'action_officer_count' => max(1, count($actionOfficers) ?: (int) ($body['actionOfficerCount'] ?? 1)),
             'review_remarks' => '',
             'created_by' => $user->id,
             'updated_by' => $user->id,
@@ -79,12 +87,34 @@ class FormService
             'workProcedurePath' => 'work_procedure_path',
             'description' => 'description',
             'department' => 'department',
+            'requireRecommendingOfficer' => 'require_recommending_officer',
+            'requireImmediateSupervisor' => 'require_immediate_supervisor',
+            'actionOfficerCount' => 'action_officer_count',
+            'actionOfficers' => 'action_officers',
         ];
 
         foreach ($map as $camel => $snake) {
-            if (array_key_exists($camel, $body)) {
-                $form->{$snake} = $body[$camel];
+            if (! array_key_exists($camel, $body)) {
+                continue;
             }
+            $value = $body[$camel];
+            if ($snake === 'action_officers') {
+                $value = $this->normalizeActionOfficers($value);
+                $form->action_officers = $value;
+                $form->action_officer_count = max(1, count($value));
+                continue;
+            }
+            if ($snake === 'action_officer_count') {
+                // Prefer count derived from actionOfficers when that key is also present.
+                if (array_key_exists('actionOfficers', $body)) {
+                    continue;
+                }
+                $value = max(1, (int) $value);
+            }
+            if (in_array($snake, ['require_recommending_officer', 'require_immediate_supervisor'], true)) {
+                $value = (bool) $value;
+            }
+            $form->{$snake} = $value;
         }
         $form->updated_by = $user->id;
         $form->save();
@@ -157,6 +187,22 @@ class FormService
             'entityId' => (string) $form->id,
             'summary' => 'Form "'.$form->title.'" submitted to Records for review',
         ]);
+
+        $this->realtime->emitNotification(
+            [
+                'actorId' => $user->id,
+                'audience' => 'records',
+                'type' => 'form.pending',
+                'title' => $form->title,
+                'message' => $user->name.' submitted '.$form->title.' for review',
+                'to' => '/records/forms/$formId',
+                'params' => ['formId' => (string) $form->id],
+                'formId' => (string) $form->id,
+                'createdAt' => now()->toIso8601String(),
+            ],
+            [],
+            ['record_management'],
+        );
 
         return $form->fresh()->toApiArray();
     }
@@ -260,6 +306,40 @@ class FormService
             'meta' => ['remarks' => $updated->review_remarks],
         ]);
 
+        $creatorId = trim((string) $updated->created_by);
+        $decision = $body['decision'] === 'approved' ? 'published' : 'returned for revision';
+        if ($creatorId !== '') {
+            $this->realtime->emitNotification(
+                [
+                    'actorId' => $reviewer->id,
+                    'audience' => 'admin',
+                    'type' => 'form.reviewed',
+                    'title' => $updated->title,
+                    'message' => 'Records '.$decision.' '.$updated->title,
+                    'to' => '/admin/my-forms',
+                    'formId' => (string) $updated->id,
+                    'createdAt' => now()->toIso8601String(),
+                ],
+                [$creatorId],
+            );
+        }
+
+        $this->realtime->emitNotification(
+            [
+                'actorId' => $reviewer->id,
+                'audience' => 'records',
+                'type' => 'form.reviewed',
+                'title' => $updated->title,
+                'message' => 'Form '.$updated->title.' was '.$decision,
+                'to' => '/records/forms/$formId',
+                'params' => ['formId' => (string) $updated->id],
+                'formId' => (string) $updated->id,
+                'createdAt' => now()->toIso8601String(),
+            ],
+            [],
+            ['record_management'],
+        );
+
         return $updated->toApiArray();
     }
 
@@ -311,5 +391,34 @@ class FormService
         $body['fields'] = FormFields::normalize($body['fields']);
 
         return $body;
+    }
+
+    /**
+     * @return list<array{userId: string, name: string, email: string, division: string}>
+     */
+    private function normalizeActionOfficers(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($raw as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $userId = trim((string) ($row['userId'] ?? $row['_id'] ?? ''));
+            if ($userId === '') {
+                continue;
+            }
+            $out[] = [
+                'userId' => $userId,
+                'name' => trim((string) ($row['name'] ?? '')),
+                'email' => trim((string) ($row['email'] ?? '')),
+                'division' => trim((string) ($row['division'] ?? '')),
+            ];
+        }
+
+        return array_values($out);
     }
 }

@@ -1,6 +1,6 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
   ActionPanel,
@@ -26,7 +26,6 @@ export const Route = createFileRoute("/records/forms/$formId")({
 
 function FormReviewPage() {
   const { formId } = Route.useParams();
-  const navigate = useNavigate();
   const { canQuery } = useRecordsSession();
   const qc = useQueryClient();
   const [decision, setDecision] = useState<FormReviewDecision>("approved");
@@ -53,14 +52,6 @@ function FormReviewPage() {
 
   const form = data?.form;
   const canReview = form?.status === "pending_review";
-
-  useEffect(() => {
-    if (!review.isSuccess) return;
-    const timer = window.setTimeout(() => {
-      void navigate({ to: RECORDS_PENDING });
-    }, 1800);
-    return () => window.clearTimeout(timer);
-  }, [review.isSuccess, navigate]);
 
   if (isLoading) {
     return <PageLoader label="Loading form review…" />;
@@ -114,7 +105,7 @@ function FormReviewPage() {
         description="Uploaded by Admin. Zoom and scroll to review. View only."
       >
         <div className="bg-muted/30 p-4 sm:p-5">
-          <div className="mx-auto max-w-3xl overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
+          <div className="mx-auto max-w-3xl overflow-visible rounded-xl border border-border/80 bg-card shadow-sm">
             <FormUploadedFileViewer form={form} />
           </div>
         </div>
