@@ -48,6 +48,16 @@ class TicketController extends Controller
         ]);
     }
 
+    public function forReview(Request $request): JsonResponse
+    {
+        return response()->json(
+            $this->tickets->listTicketsForClientReview(
+                $this->authUser($request),
+                (string) $request->query('scope', ''),
+            ),
+        );
+    }
+
     public function assignedMine(Request $request): JsonResponse
     {
         return response()->json([
@@ -57,11 +67,12 @@ class TicketController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $data = $this->tickets->listTicketsForAdmin([
+        $data = $this->tickets->listTicketsForAdmin($this->authUser($request), [
             'status' => $request->query('status'),
             'search' => $request->query('search'),
             'page' => (int) $request->query('page', 1),
             'limit' => (int) $request->query('limit', 20),
+            'scope' => $request->query('scope'),
         ]);
 
         return response()->json($data);
@@ -74,7 +85,11 @@ class TicketController extends Controller
         $division = $request->query('division');
         $division = is_string($division) && $division !== '' ? $division : null;
 
-        return response()->json($this->tickets->listAssignees($ticketId, $division));
+        return response()->json($this->tickets->listAssignees(
+            $this->authUser($request),
+            $ticketId,
+            $division,
+        ));
     }
 
     public function show(Request $request, string $id): JsonResponse

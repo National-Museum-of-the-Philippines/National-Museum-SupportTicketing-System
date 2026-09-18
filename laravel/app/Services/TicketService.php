@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Form;
 use App\Models\Ticket;
 use App\Models\User;
+use App\Support\ActionOfficerWorkflow;
 use App\Support\ApiException;
 use App\Support\AuthUser;
 use App\Support\Id;
@@ -114,6 +115,26 @@ class TicketService
         $requireRecommending = (bool) ($form['requireRecommendingOfficer'] ?? false);
         $requireSupervisor = (bool) ($form['requireImmediateSupervisor'] ?? false);
 
+        $recommendingOfficerId = null;
+        $recommendingOfficerSectionId = null;
+        $immediateSupervisorId = null;
+        $officer = null;
+        $supervisor = null;
+        if (($requireRecommending || $requireSupervisor) && $ticketingUser) {
+            $routing = $this->pamana->clientApprovalRoutingFor($ticketingUser);
+            $recommendingOfficerSectionId = trim((string) ($routing['sectionId'] ?? '')) ?: null;
+
+            if ($requireRecommending) {
+                $officer = $routing['recommendingOfficer'] ?? null;
+                $recommendingOfficerId = $officer['userId'] ?? null;
+            }
+
+            if ($requireSupervisor) {
+                $supervisor = $routing['supervisor'] ?? null;
+                $immediateSupervisorId = $supervisor['userId'] ?? null;
+            }
+        }
+
         if ($requireRecommending || $requireSupervisor) {
             $status = 'for_client_approval';
             $clientApprovalStage = $requireRecommending ? 'recommending' : 'supervisor';
@@ -122,7 +143,9 @@ class TicketService
         } else {
             $status = 'for_process_owner';
             $clientApprovalStage = null;
-            $processOwnerPhase = 'approval';
+            $processOwnerPhase = ActionOfficerWorkflow::initialPhase(
+                ActionOfficerWorkflow::officers(Form::query()->find($formId)),
+            );
             $processOwnerApprovalsDone = 0;
         }
 
@@ -142,6 +165,9 @@ class TicketService
             'attachment_mime_type' => (string) ($attachmentMimeType ?? ''),
             'status' => $status,
             'client_approval_stage' => $clientApprovalStage,
+            'recommending_officer_id' => $recommendingOfficerId,
+            'recommending_officer_section_id' => $recommendingOfficerSectionId,
+            'immediate_supervisor_id' => $immediateSupervisorId,
             'process_owner_approvals_done' => $processOwnerApprovalsDone,
             'process_owner_phase' => $processOwnerPhase,
             'priority' => 'medium',
@@ -151,9 +177,20 @@ class TicketService
             'client_confirmed' => false,
         ]);
 
-        $summary = ($requireRecommending || $requireSupervisor)
-            ? 'Request '.$ticket->ticket_number.' submitted — for client approval'
-            : 'Request '.$ticket->ticket_number.' submitted — for process owner approval';
+        if ($requireRecommending || $requireSupervisor) {
+            $summary = 'Request '.$ticket->ticket_number.' submitted — for client approval';
+            if ($requireRecommending) {
+                $summary .= isset($officer['name']) && $officer['name'] !== ''
+                    ? ' (routed to '.$officer['name'].', Recommending Officer)'
+                    : ' (no Recommending Officer assigned for this section — any admin may approve)';
+            } elseif ($requireSupervisor) {
+                $summary .= $supervisor && $supervisor['name'] !== ''
+                    ? ' (routed to '.$supervisor['name'].', Immediate Supervisor)'
+                    : ' (no Immediate Supervisor resolved from PAMANA — any admin may approve)';
+            }
+        } else {
+            $summary = 'Request '.$ticket->ticket_number.' submitted — for process owner approval';
+        }
 
         $this->activity->logActivity($user, [
             'action' => 'ticket_created',
@@ -174,22 +211,33 @@ class TicketService
     }
 
     /**
-     * @param  array{status?: string, search?: string, page?: int, limit?: int}  $query
+     * Approval queue and Request Management only list workflow tickets for the
+     * Action Officer whose turn it is / the Request Manager. Legacy tickets
+     * (forms without a workflow) stay visible to every admin.
+     *
+     * @param  array{status?: string, search?: string, page?: int, limit?: int, scope?: string}  $query
      * @return array{items: list<array<string, mixed>>, total: int, page: int, limit: int, pendingCount: int}
      */
-    public function listTicketsForAdmin(array $query): array
+    public function listTicketsForAdmin(AuthUser $user, array $query): array
     {
         $page = max(1, (int) ($query['page'] ?? 1));
         $limit = min(50, (int) ($query['limit'] ?? 20));
-        $builder = Ticket::query()->with('assignees');
+        $builder = Ticket::query()->with(['assignees', 'recommendingOfficer', 'immediateSupervisor']);
 
+        $scope = (string) ($query['scope'] ?? '');
         if (! empty($query['status'])) {
             $status = (string) $query['status'];
-            if (in_array($status, ['for_process_owner', 'pending_approval', 'for_client_approval'], true)) {
-                $builder->whereIn('status', ['for_process_owner', 'pending_approval', 'for_client_approval']);
+            if (in_array($status, ['for_process_owner', 'pending_approval'], true)) {
+                $builder->whereIn('status', ['for_process_owner', 'pending_approval']);
+                $this->scopeToWorkflowActor($builder, $user);
+            } elseif ($status === 'for_client_approval') {
+                $builder->where('status', 'for_client_approval');
             } else {
                 $builder->where('status', $status);
             }
+        }
+        if ($scope === 'management') {
+            $this->scopeToRequestManager($builder, $user);
         }
         if (! empty($query['search']) && trim($query['search']) !== '') {
             $search = trim($query['search']);
@@ -201,17 +249,311 @@ class TicketService
         }
 
         $total = (clone $builder)->count();
-        $pendingCount = Ticket::query()
-            ->whereIn('status', ['for_process_owner', 'pending_approval', 'for_client_approval'])
-            ->count();
-        $items = $builder->orderByDesc('updated_at')
+        $pendingQuery = Ticket::query()
+            ->whereIn('status', ['for_process_owner', 'pending_approval']);
+        $this->scopeToWorkflowActor($pendingQuery, $user);
+        $pendingCount = $pendingQuery->count();
+        $tickets = $builder->orderByDesc('updated_at')
             ->skip(($page - 1) * $limit)
             ->limit($limit)
-            ->get()
-            ->map(fn (Ticket $t) => $t->toApiArray())
+            ->get();
+        $formsById = Form::query()
+            ->whereIn('id', $tickets->pluck('form_id')->filter()->unique()->values())
+            ->get(['id', 'action_officers'])
+            ->keyBy('id');
+        $items = $tickets
+            ->map(fn (Ticket $t) => $t->toApiArray(
+                $this->workflowApiFields($t, ActionOfficerWorkflow::officers($formsById->get($t->form_id))),
+            ))
             ->all();
 
         return compact('items', 'total', 'page', 'limit', 'pendingCount');
+    }
+
+    /**
+     * Client portal For Review queues (Recommending Officer / Immediate Supervisor).
+     *
+     * @return array{items: list<array<string, mixed>>, total: int, canReviewRecommending: bool, canReviewSupervisor: bool}
+     */
+    public function listTicketsForClientReview(AuthUser $user, string $scope): array
+    {
+        if (! in_array($scope, ['recommending', 'supervisor', 'action_officer'], true)) {
+            throw new ApiException(422, 'Invalid review scope');
+        }
+
+        if ($scope === 'action_officer') {
+            $builder = Ticket::query()->with(['assignees', 'recommendingOfficer', 'immediateSupervisor']);
+            $builder->whereIn('status', ['for_process_owner', 'pending_approval']);
+            $this->scopeToCurrentActionOfficer($builder, $user);
+            $tickets = $builder->orderByDesc('updated_at')->limit(100)->get();
+            $formsById = Form::query()
+                ->whereIn('id', $tickets->pluck('form_id')->filter()->unique()->values())
+                ->get(['id', 'action_officers'])
+                ->keyBy('id');
+            $items = $tickets
+                ->map(fn (Ticket $t) => $t->toApiArray(
+                    $this->workflowApiFields($t, ActionOfficerWorkflow::officers($formsById->get($t->form_id))),
+                ))
+                ->all();
+
+            return [
+                'items' => $items,
+                'total' => count($items),
+                'canReviewRecommending' => false,
+                'canReviewSupervisor' => false,
+            ];
+        }
+
+        $reviewRoles = $this->clientReviewRoles($user);
+        $builder = Ticket::query()->with(['assignees', 'recommendingOfficer', 'immediateSupervisor']);
+        $this->scopeClientReviewQueue(
+            $builder,
+            $user,
+            $scope,
+            $scope === 'recommending'
+                ? $reviewRoles['recommendingSectionIds']
+                : $reviewRoles['supervisorSectionIds'],
+        );
+
+        $tickets = $builder->orderByDesc('updated_at')->limit(100)->get();
+        $tickets = $tickets->concat($this->unroutedClientReviewTickets(
+            $user,
+            $scope,
+            $scope === 'recommending'
+                ? $reviewRoles['recommendingSectionIds']
+                : $reviewRoles['supervisorSectionIds'],
+            $tickets->pluck('id')->all(),
+        ))->unique('id')->values();
+        $formsById = Form::query()
+            ->whereIn('id', $tickets->pluck('form_id')->filter()->unique()->values())
+            ->get(['id', 'action_officers'])
+            ->keyBy('id');
+        $items = $tickets
+            ->map(fn (Ticket $t) => $t->toApiArray(
+                $this->workflowApiFields($t, ActionOfficerWorkflow::officers($formsById->get($t->form_id))),
+            ))
+            ->all();
+
+        return [
+            'items' => $items,
+            'total' => count($items),
+            'canReviewRecommending' => $reviewRoles['recommendingSectionIds'] !== [],
+            'canReviewSupervisor' => $reviewRoles['supervisorSectionIds'] !== [],
+        ];
+    }
+
+    /**
+     * @return array{recommendingSectionIds: list<string>, supervisorSectionIds: list<string>}
+     */
+    private function clientReviewRoles(AuthUser $actor): array
+    {
+        $user = User::query()->find($actor->id);
+        if (! $user) {
+            return ['recommendingSectionIds' => [], 'supervisorSectionIds' => []];
+        }
+
+        return $this->pamana->clientReviewRolesFor($user);
+    }
+
+    /**
+     * @param  list<string>  $sectionIds
+     */
+    private function scopeClientReviewQueue($builder, AuthUser $user, string $stage, array $sectionIds): void
+    {
+        $builder->where('status', 'for_client_approval')
+            ->where('client_approval_stage', $stage);
+
+        if ($sectionIds === []) {
+            $builder->whereRaw('0 = 1');
+
+            return;
+        }
+
+        $assignedColumn = $stage === 'recommending'
+            ? 'recommending_officer_id'
+            : 'immediate_supervisor_id';
+
+        $builder->where(function ($q) use ($user, $sectionIds, $assignedColumn) {
+            $q->whereIn('recommending_officer_section_id', $sectionIds)
+                ->orWhere($assignedColumn, $user->id);
+        });
+    }
+
+    private function actorIsClientReviewer(AuthUser $actor, Ticket $ticket): bool
+    {
+        $stage = (string) ($ticket->client_approval_stage ?? '');
+        $roles = $this->clientReviewRoles($actor);
+        $sectionIds = $stage === 'recommending'
+            ? $roles['recommendingSectionIds']
+            : $roles['supervisorSectionIds'];
+        if ($sectionIds === []) {
+            return false;
+        }
+
+        $sectionId = trim((string) ($ticket->recommending_officer_section_id ?? ''));
+        if ($sectionId !== '' && in_array($sectionId, $sectionIds, true)) {
+            return true;
+        }
+
+        $assignedId = $stage === 'recommending'
+            ? trim((string) ($ticket->recommending_officer_id ?? ''))
+            : trim((string) ($ticket->immediate_supervisor_id ?? ''));
+
+        if ($assignedId === $actor->id) {
+            return true;
+        }
+
+        $creator = User::query()->find($ticket->creator_id);
+        if (! $creator) {
+            return false;
+        }
+        $routing = $this->pamana->clientApprovalRoutingFor($creator);
+        $creatorSection = trim((string) ($routing['sectionId'] ?? ''));
+        if ($creatorSection !== '' && in_array($creatorSection, $sectionIds, true)) {
+            return true;
+        }
+        $routedOfficerId = $stage === 'recommending'
+            ? trim((string) ($routing['recommendingOfficer']['userId'] ?? ''))
+            : trim((string) ($routing['supervisor']['userId'] ?? ''));
+
+        return $routedOfficerId === $actor->id;
+    }
+
+    /**
+     * Tickets submitted before PAMANA staffs.user_id routing was fixed have empty
+     * officer columns — still show them if the creator's staff_role maps here.
+     *
+     * @param  list<string>  $sectionIds
+     * @param  list<string>  $alreadyIds
+     * @return \Illuminate\Support\Collection<int, Ticket>
+     */
+    private function unroutedClientReviewTickets(AuthUser $actor, string $stage, array $sectionIds, array $alreadyIds)
+    {
+        if ($sectionIds === []) {
+            return collect();
+        }
+
+        $orphans = Ticket::query()
+            ->with(['assignees', 'recommendingOfficer', 'immediateSupervisor'])
+            ->where('status', 'for_client_approval')
+            ->where('client_approval_stage', $stage)
+            ->where(function ($q) {
+                $q->whereNull('recommending_officer_section_id')
+                    ->orWhere('recommending_officer_section_id', '');
+            })
+            ->when($alreadyIds !== [], fn ($q) => $q->whereNotIn('id', $alreadyIds))
+            ->orderByDesc('updated_at')
+            ->limit(50)
+            ->get();
+
+        return $orphans->filter(function (Ticket $ticket) use ($actor, $stage, $sectionIds) {
+            $creator = User::query()->find($ticket->creator_id);
+            if (! $creator) {
+                return false;
+            }
+            $routing = $this->pamana->clientApprovalRoutingFor($creator);
+            $section = trim((string) ($routing['sectionId'] ?? ''));
+            if ($section !== '' && in_array($section, $sectionIds, true)) {
+                return true;
+            }
+            $officerId = $stage === 'recommending'
+                ? trim((string) ($routing['recommendingOfficer']['userId'] ?? ''))
+                : trim((string) ($routing['supervisor']['userId'] ?? ''));
+
+            return $officerId === $actor->id;
+        })->values();
+    }
+
+    /** SQL: form has at least one Action Officer configured. */
+    private const WORKFLOW_FORM_SQL = "SELECT 1 FROM forms wf WHERE wf.id = tickets.form_id
+        AND JSON_TYPE(wf.action_officers) = 'ARRAY' AND JSON_LENGTH(wf.action_officers) > 0";
+
+    /** SQL (inside WORKFLOW_FORM_SQL): userId of the officer whose step it is. */
+    private const CURRENT_ACTOR_ID_SQL = "JSON_UNQUOTE(JSON_EXTRACT(wf.action_officers, CONCAT('$[',
+        CASE WHEN tickets.process_owner_phase = 'assignment'
+                OR tickets.process_owner_approvals_done >= JSON_LENGTH(wf.action_officers)
+            THEN JSON_LENGTH(wf.action_officers) - 1
+            ELSE tickets.process_owner_approvals_done END,
+        '].userId')))";
+
+    /** SQL (inside WORKFLOW_FORM_SQL): userId of the Request Manager (last officer). */
+    private const REQUEST_MANAGER_ID_SQL = "JSON_UNQUOTE(JSON_EXTRACT(wf.action_officers,
+        CONCAT('$[', JSON_LENGTH(wf.action_officers) - 1, '].userId')))";
+
+    /** Client Action Officer queue: only the officer whose step it is (no legacy all-admins). */
+    private function scopeToCurrentActionOfficer($builder, AuthUser $user): void
+    {
+        $builder->whereRaw('EXISTS ('.self::WORKFLOW_FORM_SQL.' AND '.self::CURRENT_ACTOR_ID_SQL.' = ?)', [$user->id]);
+    }
+
+    /**
+     * Action Officer approval queue: legacy tickets stay visible to all admins;
+     * workflow tickets only to the officer whose turn it is.
+     */
+    private function scopeToWorkflowActor($builder, AuthUser $user): void
+    {
+        $builder->where(function ($q) use ($user) {
+            $q->whereRaw('NOT EXISTS ('.self::WORKFLOW_FORM_SQL.')')
+                ->orWhereRaw('EXISTS ('.self::WORKFLOW_FORM_SQL.' AND '.self::CURRENT_ACTOR_ID_SQL.' = ?)', [$user->id]);
+        });
+    }
+
+    /** Request Management: after Action Officer approvals, any admin (e.g. Resty) can assign. */
+    private function scopeToRequestManager($builder, AuthUser $user): void
+    {
+        $builder->where(function ($q) {
+            $q->whereRaw('NOT EXISTS ('.self::WORKFLOW_FORM_SQL.')')
+                ->orWhere(function ($ready) {
+                    $ready->whereRaw('EXISTS ('.self::WORKFLOW_FORM_SQL.')')
+                        ->where(function ($inner) {
+                            $inner->where('tickets.process_owner_phase', 'assignment')
+                                ->orWhereNotIn('tickets.status', [
+                                    'for_client_approval',
+                                    'for_process_owner',
+                                    'pending_approval',
+                                ]);
+                        });
+                });
+        });
+    }
+
+    /**
+     * Extra ticket API fields for the Action Officer workflow (no-op for legacy forms).
+     *
+     * @param  list<array{userId: string, name: string}>  $officers
+     * @return array<string, mixed>
+     */
+    private function workflowApiFields(Ticket $ticket, array $officers): array
+    {
+        if ($officers === []) {
+            return ['actionOfficerWorkflow' => null];
+        }
+
+        $fields = ['actionOfficerWorkflow' => ActionOfficerWorkflow::summary($ticket, $officers)];
+        if (
+            ActionOfficerWorkflow::isInProcessOwnerQueue($ticket)
+            && ActionOfficerWorkflow::isReadyForAssignment($ticket, $officers)
+        ) {
+            $fields['processOwnerPhase'] = 'assignment';
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param  list<array{userId: string, name: string}>  $officers
+     */
+    private function assertRequestManager(AuthUser $actor, array $officers, string $action): void
+    {
+        if (in_array($actor->role, ['admin', 'super_admin'], true)) {
+            return;
+        }
+        $manager = ActionOfficerWorkflow::requestManager($officers);
+        if ($manager && $manager['userId'] === $actor->id) {
+            return;
+        }
+        $label = $manager && $manager['name'] !== '' ? $manager['name'].' (Request Management)' : 'Request Management';
+        throw new ApiException(403, 'Only '.$label.' can '.$action);
     }
 
     /**
@@ -237,10 +579,12 @@ class TicketService
             ->with([
                 'assignees',
                 'creator',
+                'recommendingOfficer',
+                'immediateSupervisor',
                 'form' => fn ($q) => $q->select([
                     'id', 'title', 'ref_number', 'fields', 'print_template',
                     'print_template_image_path', 'print_placements', 'print_placement_font_size',
-                    'work_procedure_path', 'work_procedure_name',
+                    'work_procedure_path', 'work_procedure_name', 'action_officers',
                 ]),
             ])
             ->find($id);
@@ -251,12 +595,12 @@ class TicketService
 
         $this->fillMissingRequesterProfileAnswers($ticket);
 
-        return $ticket->toApiArray();
+        return $ticket->toApiArray($this->workflowApiFields($ticket, ActionOfficerWorkflow::officers($ticket->form)));
     }
 
     /**
      * Older tickets stored empty {{prof_division}} / {{prof_designation}} because
-     * the PAMANA staffinformations view was broken. Fill from plantilla + profile.
+     * the PAMANA staffinformation view was broken. Fill from plantilla + profile.
      */
     private function fillMissingRequesterProfileAnswers(Ticket $ticket): void
     {
@@ -308,8 +652,33 @@ class TicketService
         }
 
         $creatorId = Id::of($ticket['creatorId'] ?? '');
-        if ($user->role === 'user' && $creatorId === $user->id) {
+        if ($creatorId === $user->id) {
             return;
+        }
+
+        foreach ($ticket['assignedTo'] ?? [] as $assignee) {
+            $assigneeId = is_array($assignee)
+                ? Id::of($assignee['_id'] ?? '')
+                : Id::of($assignee);
+            if ($assigneeId !== '' && $assigneeId === $user->id) {
+                return;
+            }
+        }
+
+        if (($ticket['status'] ?? '') === 'for_client_approval') {
+            $model = Ticket::query()->find((string) ($ticket['_id'] ?? ''));
+            if ($model && $this->actorIsClientReviewer($user, $model)) {
+                return;
+            }
+        }
+
+        if (in_array((string) ($ticket['status'] ?? ''), ['for_process_owner', 'pending_approval'], true)) {
+            $model = Ticket::query()->with('form')->find((string) ($ticket['_id'] ?? ''));
+            $officers = $model ? ActionOfficerWorkflow::officers($model->form) : [];
+            $current = $model ? ActionOfficerWorkflow::currentActor($model, $officers) : null;
+            if ($current && $current['userId'] === $user->id) {
+                return;
+            }
         }
 
         throw new ApiException(403, 'You do not have access to this request');
@@ -347,23 +716,30 @@ class TicketService
         }
 
         $form = Form::query()->find($ticket->form_id);
-        $officerCount = max(1, (int) ($form?->action_officer_count ?? 1));
-        $officers = is_array($form?->action_officers) ? $form->action_officers : [];
-        if (count($officers) > 0) {
-            $officerCount = count($officers);
-        }
-        $approvalsNeeded = $officerCount === 1 ? 1 : $officerCount - 1;
-
+        $officers = ActionOfficerWorkflow::officers($form);
         $doneBefore = (int) ($ticket->process_owner_approvals_done ?? 0);
-        if (count($officers) > 0) {
+
+        if ($officers !== []) {
+            // Configured workflow: AO1 → AOn sequential approval; last AO is Request Management.
+            $officerCount = count($officers);
+            $approvalsNeeded = ActionOfficerWorkflow::approvalsNeeded($officers);
+            if (ActionOfficerWorkflow::isReadyForAssignment($ticket, $officers)) {
+                throw new ApiException(400, 'This request is ready for task assignment');
+            }
             $expected = $officers[$doneBefore] ?? null;
-            $expectedId = is_array($expected) ? trim((string) ($expected['userId'] ?? '')) : '';
-            if ($expectedId === '' || $expectedId !== $actor->id) {
-                $label = is_array($expected) && ($expected['name'] ?? '') !== ''
-                    ? (string) $expected['name']
+            if (! $expected || $expected['userId'] !== $actor->id) {
+                $label = $expected && $expected['name'] !== ''
+                    ? $expected['name'].' (Action Officer '.($doneBefore + 1).')'
                     : 'the next Action Officer';
                 throw new ApiException(403, 'Only '.$label.' can approve this step');
             }
+        } else {
+            // Legacy form (no workflow configured): original behavior — admins only.
+            if ($actor->role === 'user') {
+                throw new ApiException(403, 'Only the assigned Action Officer can approve this request');
+            }
+            $officerCount = max(1, (int) ($form?->action_officer_count ?? 1));
+            $approvalsNeeded = $officerCount === 1 ? 1 : $officerCount - 1;
         }
 
         $done = $doneBefore + 1;
@@ -373,7 +749,10 @@ class TicketService
 
         if ($done >= $approvalsNeeded) {
             $ticket->process_owner_phase = 'assignment';
-            $summary = 'Request '.$ticket->ticket_number.' approved — ready for task assignment';
+            $manager = ActionOfficerWorkflow::requestManager($officers);
+            $summary = $manager && $manager['name'] !== ''
+                ? 'Request '.$ticket->ticket_number.' approved — forwarded to '.$manager['name'].' (Request Management) for task assignment'
+                : 'Request '.$ticket->ticket_number.' approved — ready for task assignment';
             $action = 'ticket_process_owner_ready_for_assignment';
         } else {
             $ticket->process_owner_phase = 'approval';
@@ -410,31 +789,46 @@ class TicketService
         $requireSupervisor = (bool) ($form?->require_immediate_supervisor);
         $stage = (string) ($ticket->client_approval_stage ?? 'recommending');
 
-        if ($stage === 'recommending' && $requireSupervisor) {
-            $ticket->client_approval_stage = 'supervisor';
-            $ticket->status = 'for_client_approval';
-            $ticket->save();
-
-            $this->activity->logActivity($actor, [
-                'action' => 'ticket_client_approval_recommending',
-                'entityType' => 'ticket',
-                'entityId' => (string) $ticket->id,
-                'summary' => 'Request '.$ticket->ticket_number.' approved by Recommending Officer — forwarded to Immediate Supervisor',
-            ]);
-
-            $this->notifyTicketChange(
-                $actor,
-                $ticket,
-                'Request '.$ticket->ticket_number.' approved by Recommending Officer — forwarded to Immediate Supervisor',
+        if (! $this->actorIsClientReviewer($actor, $ticket)) {
+            throw new ApiException(
+                403,
+                $stage === 'supervisor'
+                    ? 'Only an Immediate Supervisor listed in staff_role can approve this request'
+                    : 'Only a Recommending Officer listed in staff_role can approve this request',
             );
+        }
 
-            return $ticket->fresh(['assignees'])->toApiArray();
+        if ($stage === 'recommending' && $requireSupervisor) {
+            $supervisorId = trim((string) ($ticket->immediate_supervisor_id ?? ''));
+            $samePerson = $supervisorId !== '' && ($supervisorId === $actor->id || $supervisorId === trim((string) ($ticket->recommending_officer_id ?? '')));
+            if ($supervisorId !== '' && ! $samePerson) {
+                $ticket->client_approval_stage = 'supervisor';
+                $ticket->status = 'for_client_approval';
+                $ticket->save();
+
+                $this->activity->logActivity($actor, [
+                    'action' => 'ticket_client_approval_recommending',
+                    'entityType' => 'ticket',
+                    'entityId' => (string) $ticket->id,
+                    'summary' => 'Request '.$ticket->ticket_number.' approved by Recommending Officer — forwarded to Immediate Supervisor',
+                ]);
+
+                $this->notifyTicketChange(
+                    $actor,
+                    $ticket,
+                    'Request '.$ticket->ticket_number.' approved by Recommending Officer — forwarded to Immediate Supervisor',
+                );
+
+                return $ticket->fresh(['assignees'])->toApiArray();
+            }
         }
 
         $ticket->status = 'for_process_owner';
         $ticket->client_approval_stage = null;
         $ticket->process_owner_approvals_done = 0;
-        $ticket->process_owner_phase = 'approval';
+        $ticket->process_owner_phase = ActionOfficerWorkflow::initialPhase(
+            ActionOfficerWorkflow::officers($form),
+        );
         $ticket->save();
 
         $this->activity->logActivity($actor, [
@@ -464,6 +858,22 @@ class TicketService
         }
         if (! in_array($ticket->status, ['for_client_approval', 'for_process_owner', 'pending_approval'], true)) {
             throw new ApiException(400, 'Ticket is not awaiting approval');
+        }
+        if ($ticket->status === 'for_client_approval') {
+            if (! $this->actorIsClientReviewer($actor, $ticket)) {
+                throw new ApiException(403, 'Only the Recommending Officer or Immediate Supervisor for this request can reject it');
+            }
+        } else {
+            $officers = ActionOfficerWorkflow::officers(Form::query()->find($ticket->form_id));
+            $currentActor = ActionOfficerWorkflow::currentActor($ticket, $officers);
+            if ($officers === []) {
+                if ($actor->role === 'user') {
+                    throw new ApiException(403, 'You can only reject requests waiting for your review');
+                }
+            } elseif (! $currentActor || $currentActor['userId'] !== $actor->id) {
+                $label = $currentActor && $currentActor['name'] !== '' ? $currentActor['name'] : 'the assigned Action Officer';
+                throw new ApiException(403, 'Only '.$label.' can reject this request at this step');
+            }
         }
 
         $ticket->status = 'rejected';
@@ -499,51 +909,40 @@ class TicketService
         if ($ticket->status === 'for_client_approval') {
             throw new ApiException(400, 'Complete client approval before assigning personnel');
         }
+        $officers = ActionOfficerWorkflow::officers(Form::query()->find($ticket->form_id));
+        if ($officers !== []) {
+            $this->assertRequestManager($actor, $officers, 'assign personnel for this request');
+        }
         if (in_array($ticket->status, ['for_process_owner', 'pending_approval'], true)) {
-            if ((string) ($ticket->process_owner_phase ?? '') !== 'assignment') {
+            $readyForAssignment = $officers !== []
+                ? ActionOfficerWorkflow::isReadyForAssignment($ticket, $officers)
+                : (string) ($ticket->process_owner_phase ?? '') === 'assignment';
+            if (! $readyForAssignment) {
                 throw new ApiException(400, 'Complete process owner approvals before assigning personnel');
-            }
-            $form = Form::query()->find($ticket->form_id);
-            $officers = is_array($form?->action_officers) ? $form->action_officers : [];
-            if (count($officers) > 0) {
-                $last = $officers[count($officers) - 1];
-                $expectedId = is_array($last) ? trim((string) ($last['userId'] ?? '')) : '';
-                if ($expectedId === '' || $expectedId !== $actor->id) {
-                    $label = is_array($last) && ($last['name'] ?? '') !== ''
-                        ? (string) $last['name']
-                        : 'the assigned Action Officer';
-                    throw new ApiException(403, 'Only '.$label.' can assign personnel for this request');
-                }
             }
         }
         if (in_array($ticket->status, ['rejected', 'closed'], true)) {
             throw new ApiException(400, 'Cannot assign personnel to a closed or rejected request');
         }
 
+        $admin = User::query()->find($actor->id);
+        $allowedIds = $admin
+            ? collect($this->pamana->listStaffInSameSection($admin, false)['users'])->pluck('_id')->all()
+            : [];
+
         $users = User::query()
             ->whereIn('id', $assigneeIds)
-            ->where('role', 'admin')
             ->where('active', true)
-            ->get();
+            ->get()
+            ->filter(fn (User $u) => in_array((string) $u->id, $allowedIds, true))
+            ->values();
 
         if ($users->isEmpty()) {
-            throw new ApiException(400, 'No valid personnel to assign');
-        }
-
-        $ownerDivision = $this->formOwnerDivisionForTicket($ticket);
-        if ($ownerDivision !== '') {
-            $outside = $users->filter(
-                fn (User $u) => ! $this->divisionsMatch((string) ($u->division ?? ''), $ownerDivision),
-            );
-            if ($outside->isNotEmpty()) {
-                throw new ApiException(
-                    400,
-                    'Personnel must belong to the form owner\'s division ('.$ownerDivision.')',
-                );
-            }
+            throw new ApiException(400, 'No valid personnel to assign from your section');
         }
 
         $ids = $users->map(fn (User $u) => (string) $u->id)->all();
+        $previousIds = $ticket->assigneeIds();
         $ticket->assignees()->sync($ids);
         if (! in_array($ticket->status, ['resolved', 'closed'], true)) {
             $ticket->status = 'in_progress';
@@ -565,6 +964,7 @@ class TicketService
             $ticket,
             'Request '.$ticket->ticket_number.' assigned — in progress',
         );
+        $this->notifyAssignedPersonnel($actor, $ticket, array_values(array_diff($ids, $previousIds)));
 
         return $ticket->fresh(['assignees'])->toApiArray();
     }
@@ -584,6 +984,10 @@ class TicketService
         $ticket = Ticket::query()->find($id);
         if (! $ticket) {
             throw new ApiException(404, 'Ticket not found');
+        }
+        $officers = ActionOfficerWorkflow::officers(Form::query()->find($ticket->form_id));
+        if ($officers !== []) {
+            $this->assertRequestManager($actor, $officers, 'update the status of this request');
         }
 
         $prev = $ticket->status;
@@ -743,47 +1147,29 @@ class TicketService
     }
 
     /**
-     * Active admin users available for assignment / Action Officer selection.
-     * When $ticketId is set, only admins from the form creator's division are returned.
-     * When $division is set (form builder), filter by that section/division.
+     * Active personnel in the logged-in admin's PAMANA section (staffinformation.section_id).
      *
      * @return array{users: list<array{_id: string, name: string, email: string, division: string}>, division: string}
      */
-    public function listAssignees(?string $ticketId = null, ?string $division = null): array
+    public function listAssignees(AuthUser $actor, ?string $ticketId = null, ?string $division = null): array
     {
-        $query = User::query()
-            ->where('role', 'admin')
-            ->where('active', true);
-
-        $ownerDivision = '';
         if ($ticketId) {
             $ticket = Ticket::query()->find($ticketId);
             if (! $ticket) {
                 throw new ApiException(404, 'Ticket not found');
             }
-            $ownerDivision = $this->formOwnerDivisionForTicket($ticket);
-            if ($ownerDivision !== '') {
-                $query->whereRaw('LOWER(TRIM(division)) = ?', [mb_strtolower($ownerDivision)]);
-            }
-        } elseif ($division !== null && trim($division) !== '') {
-            $ownerDivision = trim($division);
-            $query->whereRaw('LOWER(TRIM(division)) = ?', [mb_strtolower($ownerDivision)]);
         }
 
-        $users = $query
-            ->orderBy('name')
-            ->get()
-            ->map(fn (User $u) => [
-                '_id' => (string) $u->id,
-                'name' => $u->name,
-                'email' => $u->email,
-                'division' => $u->division ?? '',
-            ])
-            ->all();
+        $admin = User::query()->find($actor->id);
+        if (! $admin) {
+            return ['users' => [], 'division' => ''];
+        }
+
+        $section = $this->pamana->listStaffInSameSection($admin, false);
 
         return [
-            'users' => $users,
-            'division' => $ownerDivision,
+            'users' => $section['users'],
+            'division' => $section['sectionName'],
         ];
     }
 
@@ -798,6 +1184,53 @@ class TicketService
     private function divisionsMatch(string $a, string $b): bool
     {
         return mb_strtolower(trim($a)) === mb_strtolower(trim($b));
+    }
+
+    /**
+     * Direct notice to personnel newly assigned to a request.
+     *
+     * @param  list<string>  $userIds
+     */
+    private function notifyAssignedPersonnel(AuthUser $actor, Ticket $ticket, array $userIds): void
+    {
+        if ($userIds === []) {
+            return;
+        }
+
+        $assignees = User::query()->whereIn('id', $userIds)->get()->keyBy(fn (User $u) => (string) $u->id);
+        $adminIds = [];
+        $clientIds = [];
+        foreach ($userIds as $id) {
+            $role = (string) ($assignees->get($id)?->role ?? 'user');
+            if (in_array($role, ['admin', 'super_admin'], true)) {
+                $adminIds[] = $id;
+            } else {
+                $clientIds[] = $id;
+            }
+        }
+
+        $base = [
+            'actorId' => $actor->id,
+            'type' => 'ticket.assigned',
+            'title' => $ticket->ticket_number,
+            'message' => $actor->name.' assigned you to request '.$ticket->ticket_number,
+            'ticketId' => (string) $ticket->id,
+            'params' => ['ticketId' => (string) $ticket->id],
+            'createdAt' => now()->toIso8601String(),
+        ];
+
+        if ($adminIds !== []) {
+            $this->realtime->emitNotification(
+                [...$base, 'audience' => 'admin', 'to' => '/admin/assigned'],
+                $adminIds,
+            );
+        }
+        if ($clientIds !== []) {
+            $this->realtime->emitNotification(
+                [...$base, 'audience' => 'client', 'to' => '/client/assigned'],
+                $clientIds,
+            );
+        }
     }
 
     /**
@@ -818,15 +1251,47 @@ class TicketService
             'createdAt' => now()->toIso8601String(),
         ];
 
-        $this->realtime->emitNotification(
-            [
-                ...$base,
-                'audience' => 'admin',
-                'to' => '/admin/approvals',
-            ],
-            [],
-            ['admin'],
-        );
+        $officers = ActionOfficerWorkflow::officers(Form::query()->find($ticket->form_id));
+        if ($officers === []) {
+            $this->realtime->emitNotification(
+                [
+                    ...$base,
+                    'audience' => 'admin',
+                    'to' => '/admin/approvals',
+                ],
+                [],
+                ['admin'],
+            );
+        } else {
+            // Workflow form: only the form's Action Officers hear about it, and the
+            // officer whose turn it is gets a direct "action needed" notice.
+            $currentActor = ActionOfficerWorkflow::currentActor($ticket, $officers);
+            $officerIds = array_column($officers, 'userId');
+            $this->realtime->emitNotification(
+                [
+                    ...$base,
+                    'audience' => 'admin',
+                    'to' => '/admin/approvals',
+                ],
+                array_values(array_diff($officerIds, [$currentActor['userId'] ?? ''])),
+            );
+            if ($currentActor) {
+                $isManager = $currentActor['role'] === ActionOfficerWorkflow::ROLE_REQUEST_MANAGER;
+                $this->realtime->emitNotification(
+                    [
+                        ...$base,
+                        'type' => 'ticket.workflow_action',
+                        'audience' => 'admin',
+                        'message' => $isManager
+                            ? 'Request '.$ticket->ticket_number.' is ready for Request Management — assign personnel'
+                            : 'Request '.$ticket->ticket_number.' is awaiting your approval (Action Officer '.$currentActor['step'].')',
+                        'to' => '/admin/requests/$ticketId',
+                        'params' => ['ticketId' => (string) $ticket->id],
+                    ],
+                    [$currentActor['userId']],
+                );
+            }
+        }
 
         $creatorId = trim((string) $ticket->creator_id);
         if ($creatorId !== '') {

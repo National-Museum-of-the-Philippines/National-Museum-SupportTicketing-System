@@ -14,7 +14,7 @@ import {
   StatCard,
   StatusBadge,
 } from "@/components/layout/workspace-ui";
-import { CLIENT_FEEDBACK, CLIENT_REQUESTS, CLIENT_SUBMIT } from "@/lib/navigation";
+import { CLIENT_ASSIGNED, CLIENT_FEEDBACK, CLIENT_REQUESTS, CLIENT_SUBMIT } from "@/lib/navigation";
 import {
   countTicketsNeedingFeedback,
   ticketCanMarkComplete,
@@ -41,6 +41,10 @@ function ClientDashboardPage() {
     queryKey: ["my-tickets"],
     queryFn: () => api.myTickets(),
   });
+  const { data: assigned } = useQuery({
+    queryKey: ["assigned-tickets"],
+    queryFn: () => api.listAssignedTickets("client"),
+  });
 
   const items = tickets?.items ?? [];
   const active = items.filter((t) => !["closed", "rejected"].includes(t.status)).length;
@@ -60,6 +64,7 @@ function ClientDashboardPage() {
     .slice(0, 6);
   const firstName = user?.name?.split(" ")[0];
   const firstFeedbackTicket = items.find(ticketNeedsFeedback);
+  const assignedItems = assigned?.items ?? [];
 
   return (
     <div className="page-shell">
@@ -82,6 +87,16 @@ function ClientDashboardPage() {
           </ActionLink>
         }
       />
+
+      {assignedItems.length > 0 ? (
+        <DashboardAlert tone="info" title="You have assigned requests">
+          An admin assigned you to {assignedItems.length} request
+          {assignedItems.length === 1 ? "" : "s"}. Open My Assignments to view them.
+          <div className="mt-2">
+            <ActionLink to={CLIENT_ASSIGNED}>Open Assigned to me</ActionLink>
+          </div>
+        </DashboardAlert>
+      ) : null}
 
       {needsFeedback > 0 ? (
         <DashboardAlert tone="warning" title="Submit feedback">
@@ -118,6 +133,37 @@ function ClientDashboardPage() {
             </ActionLink>
           </div>
         </DashboardAlert>
+      ) : null}
+
+      {assignedItems.length > 0 ? (
+        <DataPanel
+          title={`Assigned to me (${assignedItems.length})`}
+          action={
+            <ActionLink to={CLIENT_ASSIGNED} variant="outline">
+              View all
+            </ActionLink>
+          }
+        >
+          <ul className="divide-y divide-border/80">
+            {assignedItems.slice(0, 6).map((t) => (
+              <ListRow
+                key={t._id}
+                title={t.formTitle}
+                subtitle={`${t.ticketNumber} · Client: ${t.creatorName}`}
+                trailing={<StatusBadge status={t.status} />}
+                action={
+                  <Link
+                    to="/client/requests/$ticketId"
+                    params={{ ticketId: t._id }}
+                    className={cn(buttonVariants({ size: "sm" }), "shadow-sm")}
+                  >
+                    Open
+                  </Link>
+                }
+              />
+            ))}
+          </ul>
+        </DataPanel>
       ) : null}
 
       <div className="dashboard-stats dashboard-stats-3">

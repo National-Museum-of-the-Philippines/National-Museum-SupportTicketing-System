@@ -179,6 +179,13 @@ export const api = {
       slot,
     );
   },
+  listClientReview: (scope: "recommending" | "supervisor" | "action_officer", slot?: PortalSlot) =>
+    apiFetch<{
+      items: TicketRecord[];
+      total: number;
+      canReviewRecommending: boolean;
+      canReviewSupervisor: boolean;
+    }>(`/api/tickets/for-review?scope=${scope}`, undefined, slot),
   getTicket: (id: string, slot?: PortalSlot) =>
     apiFetch<{ ticket: TicketRecord }>(`/api/tickets/${id}`, undefined, slot),
   getTicketDocument: (id: string, slot?: PortalSlot) =>

@@ -14,7 +14,7 @@ import {
   StatCard,
   StatusBadge,
 } from "@/components/layout/workspace-ui";
-import { ADMIN_APPROVALS, ADMIN_FORMS, ADMIN_MY_FORMS } from "@/lib/navigation";
+import { ADMIN_APPROVALS, ADMIN_ASSIGNED, ADMIN_FORMS, ADMIN_MY_FORMS } from "@/lib/navigation";
 import { useAdminSession } from "@/lib/use-portal-session";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
@@ -38,11 +38,17 @@ function AdminDashboardPage() {
     queryKey: ["my-forms"],
     queryFn: () => api.myForms(),
   });
+  const { data: assigned } = useQuery({
+    queryKey: ["assigned-tickets"],
+    queryFn: () => api.listAssignedTickets("admin"),
+    enabled: canQuery,
+  });
   const { data: tickets, isLoading: ticketsLoading } = useQuery({
     queryKey: ["admin-tickets-dashboard"],
     queryFn: () => api.listTickets({ status: "pending_approval", limit: "8" }, "admin"),
     enabled: canQuery,
   });
+  const assignedCount = assigned?.items.length ?? 0;
 
   const items = forms?.items ?? [];
   const pendingForms = items.filter((f) => f.status === "pending_review").length;
@@ -70,6 +76,15 @@ function AdminDashboardPage() {
           </>
         }
       />
+
+      {assignedCount > 0 ? (
+        <DashboardAlert tone="info" title="You have assigned requests">
+          You were assigned to {assignedCount} request{assignedCount === 1 ? "" : "s"}.
+          <div className="mt-2">
+            <ActionLink to={ADMIN_ASSIGNED}>Open My Assignments</ActionLink>
+          </div>
+        </DashboardAlert>
+      ) : null}
 
       {disapprovedForms.length > 0 ? (
         <DashboardAlert

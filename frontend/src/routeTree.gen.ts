@@ -38,8 +38,12 @@ import { Route as ClientSettingsRouteImport } from './routes/client/settings'
 import { Route as ClientMessagesRouteImport } from './routes/client/messages'
 import { Route as ClientLoginRouteImport } from './routes/client/login'
 import { Route as ClientFormsRouteImport } from './routes/client/forms'
+import { Route as ClientForReviewSupervisorRouteImport } from './routes/client/for-review-supervisor'
+import { Route as ClientForReviewRecommendingRouteImport } from './routes/client/for-review-recommending'
+import { Route as ClientForReviewActionOfficerRouteImport } from './routes/client/for-review-action-officer'
 import { Route as ClientFeedbackRouteImport } from './routes/client/feedback'
 import { Route as ClientDashboardRouteImport } from './routes/client/dashboard'
+import { Route as ClientAssignedRouteImport } from './routes/client/assigned'
 import { Route as AdminSubmitRequestRouteImport } from './routes/admin/submit-request'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
@@ -206,6 +210,24 @@ const ClientFormsRoute = ClientFormsRouteImport.update({
   path: '/forms',
   getParentRoute: () => ClientRoute,
 } as any)
+const ClientForReviewSupervisorRoute =
+  ClientForReviewSupervisorRouteImport.update({
+    id: '/for-review-supervisor',
+    path: '/for-review-supervisor',
+    getParentRoute: () => ClientRoute,
+  } as any)
+const ClientForReviewRecommendingRoute =
+  ClientForReviewRecommendingRouteImport.update({
+    id: '/for-review-recommending',
+    path: '/for-review-recommending',
+    getParentRoute: () => ClientRoute,
+  } as any)
+const ClientForReviewActionOfficerRoute =
+  ClientForReviewActionOfficerRouteImport.update({
+    id: '/for-review-action-officer',
+    path: '/for-review-action-officer',
+    getParentRoute: () => ClientRoute,
+  } as any)
 const ClientFeedbackRoute = ClientFeedbackRouteImport.update({
   id: '/feedback',
   path: '/feedback',
@@ -214,6 +236,11 @@ const ClientFeedbackRoute = ClientFeedbackRouteImport.update({
 const ClientDashboardRoute = ClientDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => ClientRoute,
+} as any)
+const ClientAssignedRoute = ClientAssignedRouteImport.update({
+  id: '/assigned',
+  path: '/assigned',
   getParentRoute: () => ClientRoute,
 } as any)
 const AdminSubmitRequestRoute = AdminSubmitRequestRouteImport.update({
@@ -334,8 +361,12 @@ export interface FileRoutesByFullPath {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/submit-request': typeof AdminSubmitRequestRoute
+  '/client/assigned': typeof ClientAssignedRoute
   '/client/dashboard': typeof ClientDashboardRoute
   '/client/feedback': typeof ClientFeedbackRoute
+  '/client/for-review-action-officer': typeof ClientForReviewActionOfficerRoute
+  '/client/for-review-recommending': typeof ClientForReviewRecommendingRoute
+  '/client/for-review-supervisor': typeof ClientForReviewSupervisorRoute
   '/client/forms': typeof ClientFormsRoute
   '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
@@ -387,8 +418,12 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/submit-request': typeof AdminSubmitRequestRoute
+  '/client/assigned': typeof ClientAssignedRoute
   '/client/dashboard': typeof ClientDashboardRoute
   '/client/feedback': typeof ClientFeedbackRoute
+  '/client/for-review-action-officer': typeof ClientForReviewActionOfficerRoute
+  '/client/for-review-recommending': typeof ClientForReviewRecommendingRoute
+  '/client/for-review-supervisor': typeof ClientForReviewSupervisorRoute
   '/client/forms': typeof ClientFormsRoute
   '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
@@ -441,8 +476,12 @@ export interface FileRoutesById {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/submit-request': typeof AdminSubmitRequestRoute
+  '/client/assigned': typeof ClientAssignedRoute
   '/client/dashboard': typeof ClientDashboardRoute
   '/client/feedback': typeof ClientFeedbackRoute
+  '/client/for-review-action-officer': typeof ClientForReviewActionOfficerRoute
+  '/client/for-review-recommending': typeof ClientForReviewRecommendingRoute
+  '/client/for-review-supervisor': typeof ClientForReviewSupervisorRoute
   '/client/forms': typeof ClientFormsRoute
   '/client/login': typeof ClientLoginRoute
   '/client/messages': typeof ClientMessagesRoute
@@ -496,8 +535,12 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/settings'
     | '/admin/submit-request'
+    | '/client/assigned'
     | '/client/dashboard'
     | '/client/feedback'
+    | '/client/for-review-action-officer'
+    | '/client/for-review-recommending'
+    | '/client/for-review-supervisor'
     | '/client/forms'
     | '/client/login'
     | '/client/messages'
@@ -549,8 +592,12 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/settings'
     | '/admin/submit-request'
+    | '/client/assigned'
     | '/client/dashboard'
     | '/client/feedback'
+    | '/client/for-review-action-officer'
+    | '/client/for-review-recommending'
+    | '/client/for-review-supervisor'
     | '/client/forms'
     | '/client/login'
     | '/client/messages'
@@ -602,8 +649,12 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/settings'
     | '/admin/submit-request'
+    | '/client/assigned'
     | '/client/dashboard'
     | '/client/feedback'
+    | '/client/for-review-action-officer'
+    | '/client/for-review-recommending'
+    | '/client/for-review-supervisor'
     | '/client/forms'
     | '/client/login'
     | '/client/messages'
@@ -854,6 +905,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientFormsRouteImport
       parentRoute: typeof ClientRoute
     }
+    '/client/for-review-supervisor': {
+      id: '/client/for-review-supervisor'
+      path: '/for-review-supervisor'
+      fullPath: '/client/for-review-supervisor'
+      preLoaderRoute: typeof ClientForReviewSupervisorRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/client/for-review-recommending': {
+      id: '/client/for-review-recommending'
+      path: '/for-review-recommending'
+      fullPath: '/client/for-review-recommending'
+      preLoaderRoute: typeof ClientForReviewRecommendingRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/client/for-review-action-officer': {
+      id: '/client/for-review-action-officer'
+      path: '/for-review-action-officer'
+      fullPath: '/client/for-review-action-officer'
+      preLoaderRoute: typeof ClientForReviewActionOfficerRouteImport
+      parentRoute: typeof ClientRoute
+    }
     '/client/feedback': {
       id: '/client/feedback'
       path: '/feedback'
@@ -866,6 +938,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/client/dashboard'
       preLoaderRoute: typeof ClientDashboardRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/client/assigned': {
+      id: '/client/assigned'
+      path: '/assigned'
+      fullPath: '/client/assigned'
+      preLoaderRoute: typeof ClientAssignedRouteImport
       parentRoute: typeof ClientRoute
     }
     '/admin/submit-request': {
@@ -1054,8 +1133,12 @@ const AdminRouteChildren: AdminRouteChildren = {
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface ClientRouteChildren {
+  ClientAssignedRoute: typeof ClientAssignedRoute
   ClientDashboardRoute: typeof ClientDashboardRoute
   ClientFeedbackRoute: typeof ClientFeedbackRoute
+  ClientForReviewActionOfficerRoute: typeof ClientForReviewActionOfficerRoute
+  ClientForReviewRecommendingRoute: typeof ClientForReviewRecommendingRoute
+  ClientForReviewSupervisorRoute: typeof ClientForReviewSupervisorRoute
   ClientFormsRoute: typeof ClientFormsRoute
   ClientLoginRoute: typeof ClientLoginRoute
   ClientMessagesRoute: typeof ClientMessagesRoute
@@ -1066,8 +1149,12 @@ interface ClientRouteChildren {
 }
 
 const ClientRouteChildren: ClientRouteChildren = {
+  ClientAssignedRoute: ClientAssignedRoute,
   ClientDashboardRoute: ClientDashboardRoute,
   ClientFeedbackRoute: ClientFeedbackRoute,
+  ClientForReviewActionOfficerRoute: ClientForReviewActionOfficerRoute,
+  ClientForReviewRecommendingRoute: ClientForReviewRecommendingRoute,
+  ClientForReviewSupervisorRoute: ClientForReviewSupervisorRoute,
   ClientFormsRoute: ClientFormsRoute,
   ClientLoginRoute: ClientLoginRoute,
   ClientMessagesRoute: ClientMessagesRoute,

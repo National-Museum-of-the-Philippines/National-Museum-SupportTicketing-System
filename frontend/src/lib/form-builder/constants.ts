@@ -19,7 +19,7 @@ export const FORM_BUILDER_STEPS = [
   { key: "fields", label: "Fields" },
   { key: "print", label: "Print Template" },
   { key: "clientApproval", label: "Client Request Approval" },
-  { key: "processOwner", label: "Process Owner Approval" },
+  { key: "processOwner", label: "Workflow" },
   { key: "procedure", label: "Supporting Doc" },
 ] as const;
 

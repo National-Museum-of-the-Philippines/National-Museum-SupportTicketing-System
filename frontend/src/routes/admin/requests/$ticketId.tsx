@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { MessageCircle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -11,7 +11,12 @@ import { Label } from "@/components/ui/label";
 import { api, ApiError } from "@/lib/api/client";
 import type { TicketStatus } from "@/lib/api/types";
 import { getTicketDivision } from "@/lib/ticket-details";
-import { ADMIN_APPROVALS, ADMIN_DASHBOARD, ADMIN_MESSAGES, ADMIN_REQUESTS } from "@/lib/navigation";
+import {
+  canManageTicketRequest,
+  hasActionOfficerWorkflow,
+  isCurrentWorkflowActor,
+} from "@/lib/ticket-workflow";
+import { ADMIN_APPROVALS, ADMIN_MESSAGES, ADMIN_REQUESTS } from "@/lib/navigation";
 import { useAdminSession } from "@/lib/use-portal-session";
 import { cn } from "@/lib/utils";
 
@@ -32,9 +37,8 @@ function invalidateAdminTicketQueries(qc: ReturnType<typeof useQueryClient>) {
 
 function TicketDetailPage() {
   const { ticketId } = Route.useParams();
-  const navigate = useNavigate();
   const qc = useQueryClient();
-  const { canQuery } = useAdminSession();
+  const { canQuery, user } = useAdminSession();
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]);
   const [rejectReason, setRejectReason] = useState("");
 
@@ -82,9 +86,9 @@ function TicketDetailPage() {
   const assign = useMutation({
     mutationFn: () => api.assignTicket(ticketId, selectedAssigneeIds, "admin"),
     onSuccess: () => {
-      toast.success("Personnel assigned — status set to In Progress");
+      toast.success("Personnel assigned — they will see this under My Assignments");
       invalidateAdminTicketQueries(qc);
-      void navigate({ to: ADMIN_DASHBOARD, replace: true });
+      void qc.invalidateQueries({ queryKey: ["ticket", ticketId] });
     },
     onError: (err: Error) => {
       toast.error(err instanceof ApiError ? err.message : "Could not assign personnel.");
@@ -133,15 +137,21 @@ function TicketDetailPage() {
   const processOwnerPhase = ticket.processOwnerPhase ?? "approval";
   const awaitingProcessOwnerApproval = isProcessOwner && processOwnerPhase !== "assignment";
   const awaitingTaskAssignment = isProcessOwner && processOwnerPhase === "assignment";
-  const canApprove = isClientApproval || awaitingProcessOwnerApproval;
+  // Per-form Action Officer workflow; legacy forms (no workflow) keep any-admin behavior.
+  const isWorkflow = hasActionOfficerWorkflow(ticket);
+  const isRequestManager = canManageTicketRequest(ticket, user?.id);
+  const isStepOfficer = !isWorkflow || isCurrentWorkflowActor(ticket, user?.id);
+  const canApprove = isClientApproval || (awaitingProcessOwnerApproval && isStepOfficer);
+  const canAssignTask = awaitingTaskAssignment && isRequestManager;
   const backTo = isInApprovalQueue ? ADMIN_APPROVALS : ADMIN_REQUESTS;
   const isAwaitingClient = ticket.status === "resolved";
   const canAssign =
-    awaitingTaskAssignment ||
-    (!isInApprovalQueue &&
-      !isAwaitingClient &&
-      ticket.status !== "closed" &&
-      ticket.status !== "rejected");
+    isRequestManager &&
+    (awaitingTaskAssignment ||
+      (!isInApprovalQueue &&
+        !isAwaitingClient &&
+        ticket.status !== "closed" &&
+        ticket.status !== "rejected"));
 
   return (
     <div className="page-shell">
@@ -220,13 +230,13 @@ function TicketDetailPage() {
             </ActionPanel>
           ) : null}
 
-          {awaitingTaskAssignment ? (
+          {canAssignTask ? (
             <ActionPanel
               title="Task assignment"
               description={
                 assigneeData?.division
-                  ? `Select personnel from ${assigneeData.division}. After assignment the request becomes In Progress.`
-                  : "Select personnel for this request. After assignment the request becomes In Progress."
+                  ? `Select personnel from your section (${assigneeData.division}). After assignment the request becomes In Progress.`
+                  : "Select personnel from your section. After assignment the request becomes In Progress."
               }
             >
               <FlowNotice tone="info" title="Requestor's division">
@@ -237,11 +247,19 @@ function TicketDetailPage() {
                   <span className="text-muted-foreground"> · {ticket.creatorName}</span>
                 ) : null}
               </FlowNotice>
+              {ticket.assignedTo?.length ? (
+                <p className="text-sm">
+                  Currently assigned:{" "}
+                  <span className="font-medium">
+                    {ticket.assignedTo.map((u) => u.name).join(", ")}
+                  </span>
+                </p>
+              ) : null}
               <div className="max-w-md space-y-2">
                 <Label>
                   {assigneeData?.division
                     ? `${assigneeData.division} personnel`
-                    : "Personnel (form owner's division)"}
+                    : "Personnel (your section)"}
                 </Label>
                 <div
                   className={cn(
@@ -278,7 +296,7 @@ function TicketDetailPage() {
                     <p className="px-2 py-3 text-sm text-muted-foreground">
                       {assigneeData?.division
                         ? `No active personnel found in ${assigneeData.division}.`
-                        : "No personnel available for this form's division."}
+                        : "No personnel found in your section."}
                     </p>
                   )}
                 </div>
@@ -321,8 +339,8 @@ function TicketDetailPage() {
                 title="Assign personnel"
                 description={
                   assigneeData?.division
-                    ? `Only personnel from ${assigneeData.division} are listed — the same division as the admin who created this form.`
-                    : "Select personnel from the form owner's division for this request."
+                    ? `Only personnel from your section (${assigneeData.division}) are listed.`
+                    : "Select personnel from your section for this request."
                 }
               >
                 <FlowNotice tone="info" title="Requestor's division">
@@ -345,7 +363,7 @@ function TicketDetailPage() {
                   <Label>
                     {assigneeData?.division
                       ? `${assigneeData.division} personnel`
-                      : "Personnel (form owner's division)"}
+                      : "Personnel (your section)"}
                   </Label>
                   <div
                     className={cn(
@@ -409,7 +427,7 @@ function TicketDetailPage() {
                 </FlowNotice>
               ) : null}
 
-              {!isAwaitingClient && ticket.status !== "closed" ? (
+              {isRequestManager && !isAwaitingClient && ticket.status !== "closed" ? (
                 <ActionPanel
                   title="Update status"
                   description="The client marks the service complete when work is done, then submits feedback and closes the request."

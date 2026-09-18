@@ -454,7 +454,7 @@ class RbacService
                 "SELECT LOWER(pu.username) AS username_key,
                         TRIM(CONCAT_WS(' ', si.first_name, NULLIF(si.middle_name, ''), si.last_name)) AS full_name
                  FROM user pu
-                 INNER JOIN staffinformations si ON si.user_id = CAST(pu.id AS CHAR)
+                 INNER JOIN staffinformation si ON si.user_id = CAST(pu.id AS CHAR)
                  WHERE LOWER(pu.username) IN ({$placeholders})",
                 array_map('strtolower', $usernames),
             );

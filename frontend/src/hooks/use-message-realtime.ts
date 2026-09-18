@@ -203,18 +203,42 @@ export function useMessageRealtime(slot: PortalSlot) {
       if (!matchesSlot(slot, event.audience)) return;
       if (event.actorId && event.actorId === user.id) return;
 
+      const to =
+        event.to ??
+        (slot === "admin" ? "/admin/approvals" : slot === "records" ? "/records/pending" : "/client/requests");
+
       addLiveNotification(slot, {
         id: `${event.type ?? "n"}-${event.ticketId ?? event.formId ?? event.createdAt ?? Date.now()}`,
         title: event.title,
         message: event.message,
         time: event.createdAt,
-        to: event.to ?? (slot === "admin" ? "/admin/approvals" : slot === "records" ? "/records/pending" : "/client/requests"),
+        to,
         params: event.params,
       });
+
+      if (event.type === "ticket.assigned") {
+        void qc.invalidateQueries({ queryKey: ["assigned-tickets"] });
+      }
 
       playMessageSound();
       toast(event.title, {
         description: event.message,
+        action:
+          event.type === "ticket.assigned"
+            ? {
+                label: "Open",
+                onClick: () => {
+                  if (event.ticketId) {
+                    void navigate({
+                      to: slot === "admin" ? "/admin/requests/$ticketId" : "/client/requests/$ticketId",
+                      params: { ticketId: event.ticketId },
+                    });
+                    return;
+                  }
+                  void navigate({ to });
+                },
+              }
+            : undefined,
       });
     });
 

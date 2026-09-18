@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/api/client";
 import type { TicketRecord } from "@/lib/api/types";
 import { ADMIN_REQUESTS } from "@/lib/navigation";
+import { hasActionOfficerWorkflow, isCurrentWorkflowActor } from "@/lib/ticket-workflow";
 import { useAdminSession } from "@/lib/use-portal-session";
 
 export const Route = createFileRoute("/admin/approvals")({
@@ -32,6 +33,12 @@ type PendingTicketsData = {
 
 function isReadyToAssign(ticket: TicketRecord): boolean {
   return ticket.processOwnerPhase === "assignment";
+}
+
+/** Workflow forms: only the officer whose step it is may act. Legacy forms: any admin. */
+function canActOnApproval(ticket: TicketRecord, userId: string | undefined): boolean {
+  if (!hasActionOfficerWorkflow(ticket)) return true;
+  return isCurrentWorkflowActor(ticket, userId);
 }
 
 function patchPendingTicket(qc: ReturnType<typeof useQueryClient>, ticket: TicketRecord) {
@@ -68,7 +75,7 @@ function invalidateAdminTicketQueries(qc: ReturnType<typeof useQueryClient>) {
 
 function ApprovalsPage() {
   const qc = useQueryClient();
-  const { canQuery } = useAdminSession();
+  const { canQuery, user } = useAdminSession();
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["pending-tickets"],
     queryFn: () => api.listTickets({ status: "pending_approval" }, "admin"),
@@ -130,7 +137,7 @@ function ApprovalsPage() {
     <div className="page-shell">
       <WorkspacePageHeader
         title="Approvals"
-        description="Review client technical assistance requests before assignment and processing."
+        description="Action Officer queue: sequential approvals, then Request Management assignment."
         actions={
           <Button
             variant="outline"
@@ -212,7 +219,7 @@ function ApprovalsPage() {
                           <FileText className="mr-1.5 h-3.5 w-3.5" />
                           View file
                         </Button>
-                        {isReadyToAssign(t) ? (
+                        {!canActOnApproval(t, user?.id) ? null : isReadyToAssign(t) ? (
                           <Button size="sm" asChild>
                             <Link to="/admin/requests/$ticketId" params={{ ticketId: t._id }}>
                               <UserCheck className="mr-1.5 h-3.5 w-3.5" />
@@ -228,14 +235,16 @@ function ApprovalsPage() {
                             {approve.isPending && approve.variables === t._id ? "Approving…" : "Approve"}
                           </Button>
                         )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setRejectId(t._id)}
-                          disabled={approve.isPending || reject.isPending}
-                        >
-                          Reject
-                        </Button>
+                        {canActOnApproval(t, user?.id) ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setRejectId(t._id)}
+                            disabled={approve.isPending || reject.isPending}
+                          >
+                            Reject
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

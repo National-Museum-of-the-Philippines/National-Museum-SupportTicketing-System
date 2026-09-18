@@ -53,13 +53,14 @@ Route::middleware(['jwt.auth', 'role:record_management'])->prefix('records')->gr
 Route::middleware('jwt.auth')->prefix('tickets')->group(function () {
     Route::post('/', [TicketController::class, 'store'])->middleware('role:user,admin');
     Route::get('/mine', [TicketController::class, 'mine'])->middleware('role:user,admin');
-    Route::get('/assigned/mine', [TicketController::class, 'assignedMine'])->middleware('role:admin');
+    Route::get('/for-review', [TicketController::class, 'forReview'])->middleware('role:user,admin');
+    Route::get('/assigned/mine', [TicketController::class, 'assignedMine'])->middleware('role:user,admin');
     Route::get('/', [TicketController::class, 'index'])->middleware('role:admin');
     Route::get('/assignees', [TicketController::class, 'assignees'])->middleware('role:admin');
     Route::get('/{id}/document.pdf', [TicketController::class, 'documentPdf']);
     Route::get('/{id}', [TicketController::class, 'show']);
-    Route::post('/{id}/approve', [TicketController::class, 'approve'])->middleware('role:admin');
-    Route::post('/{id}/reject', [TicketController::class, 'reject'])->middleware('role:admin');
+    Route::post('/{id}/approve', [TicketController::class, 'approve'])->middleware('role:user,admin');
+    Route::post('/{id}/reject', [TicketController::class, 'reject'])->middleware('role:user,admin');
     Route::post('/{id}/assign', [TicketController::class, 'assign'])->middleware('role:admin');
     Route::post('/{id}/complete', [TicketController::class, 'complete'])->middleware('role:user,admin');
     Route::patch('/{id}/status', [TicketController::class, 'updateStatus'])->middleware('role:admin');

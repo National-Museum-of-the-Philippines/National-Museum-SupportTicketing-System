@@ -17,8 +17,9 @@ import {
 import { TicketRequestDetails } from "@/components/tickets/TicketRequestDetails";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
-import { CLIENT_FEEDBACK, CLIENT_MESSAGES, CLIENT_REQUESTS } from "@/lib/navigation";
+import { CLIENT_ASSIGNED, CLIENT_FEEDBACK, CLIENT_MESSAGES, CLIENT_REQUESTS } from "@/lib/navigation";
 import { getClientFeedbackUrl } from "@/lib/feedback-config";
+import { useAuth } from "@/lib/auth";
 import {
   ticketCanMarkComplete,
   ticketNeedsFeedback,
@@ -33,6 +34,7 @@ export const Route = createFileRoute("/client/requests/$ticketId")({
 function TicketTrackPage() {
   const { ticketId } = Route.useParams();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [comment, setComment] = useState("");
 
   const { data, isLoading } = useQuery({
@@ -76,9 +78,15 @@ function TicketTrackPage() {
 
   const ticket = data?.ticket;
   const activeTicket = feedback.data?.ticket ?? completeService.data?.ticket ?? ticket;
-  const showFeedbackStep = activeTicket ? ticketNeedsFeedback(activeTicket) : false;
-  const showCompleteButton = activeTicket ? ticketCanMarkComplete(activeTicket) && !showFeedbackStep : false;
-  const readyToClose = activeTicket ? ticketReadyToClose(activeTicket) : false;
+  const creatorId =
+    typeof ticket?.creatorId === "string"
+      ? ticket.creatorId
+      : ticket?.creatorId?._id;
+  const isOwner = Boolean(user?.id && creatorId && user.id === creatorId);
+  const showFeedbackStep = isOwner && activeTicket ? ticketNeedsFeedback(activeTicket) : false;
+  const showCompleteButton =
+    isOwner && activeTicket ? ticketCanMarkComplete(activeTicket) && !showFeedbackStep : false;
+  const readyToClose = isOwner && activeTicket ? ticketReadyToClose(activeTicket) : false;
   const showServicePanel = showCompleteButton || showFeedbackStep;
 
   if (isLoading || !ticket) {
@@ -87,7 +95,10 @@ function TicketTrackPage() {
 
   return (
     <div className="page-shell">
-      <BackLink to={CLIENT_REQUESTS} label="Back to my requests" />
+      <BackLink
+        to={isOwner ? CLIENT_REQUESTS : CLIENT_ASSIGNED}
+        label={isOwner ? "Back to my requests" : "Back to my assignments"}
+      />
 
       <WorkspacePageHeader
         title={ticket.ticketNumber}
@@ -117,11 +128,13 @@ function TicketTrackPage() {
               <div>
                 <p className="text-sm font-medium">{formatAssignedPersonnel(ticket.assignedTo)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {ticket.status === "in_progress"
-                    ? "Your request is being handled by assigned personnel."
-                    : ticket.assignedTo?.length
-                      ? "Personnel assigned to your request."
-                      : "An admin will assign personnel after your request is approved."}
+                  {isOwner
+                    ? ticket.status === "in_progress"
+                      ? "Your request is being handled by assigned personnel."
+                      : ticket.assignedTo?.length
+                        ? "Personnel assigned to your request."
+                        : "An admin will assign personnel after your request is approved."
+                    : "You are assigned to work on this request."}
                 </p>
               </div>
             </div>

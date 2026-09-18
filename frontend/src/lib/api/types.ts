@@ -80,6 +80,23 @@ export type FormRecord = {
   createdBy?: { _id: string; name: string; email: string; division: string };
 };
 
+export type ActionOfficerWorkflowRole = "approval" | "request_manager";
+
+/** Per-form Action Officer workflow on a ticket — null/absent for legacy forms. */
+export type TicketActionOfficerWorkflow = {
+  configured: true;
+  officers: Array<{ step: number; userId: string; name: string; role: ActionOfficerWorkflowRole }>;
+  approvalsNeeded: number;
+  approvalsDone: number;
+  requestManager: { userId: string; name: string };
+  currentActor: {
+    userId: string;
+    name: string;
+    step: number;
+    role: ActionOfficerWorkflowRole;
+  } | null;
+};
+
 export type TicketRecord = {
   _id: string;
   ticketNumber: string;
@@ -89,6 +106,7 @@ export type TicketRecord = {
   description: string;
   creatorName: string;
   creatorEmail?: string;
+  creatorId?: string | { _id: string; name: string; email: string; division: string };
   division: string;
   answers: Record<string, unknown>;
   attachmentUrl: string;
@@ -96,8 +114,11 @@ export type TicketRecord = {
   attachmentMimeType: string;
   status: TicketStatus;
   clientApprovalStage?: string | null;
+  recommendingOfficer?: string | { _id: string; name: string; email: string } | null;
+  immediateSupervisor?: string | { _id: string; name: string; email: string } | null;
   processOwnerApprovalsDone?: number;
   processOwnerPhase?: "approval" | "assignment" | string | null;
+  actionOfficerWorkflow?: TicketActionOfficerWorkflow | null;
   rejectionReason?: string;
   assignedTo?: Array<{ _id: string; name: string; email: string; division: string }>;
   feedbackRating?: number | null;

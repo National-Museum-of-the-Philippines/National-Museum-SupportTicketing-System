@@ -19,7 +19,7 @@ import { useMessageRealtime } from "@/hooks/use-message-realtime";
 import { usePokeNotifications } from "@/hooks/use-poke-notifications";
 import { api } from "@/lib/api/client";
 import { useLiveNotifications } from "@/lib/live-notifications";
-import { adminApprovalNotifications } from "@/lib/notifications";
+import { adminApprovalNotifications, assignedPersonnelNotifications } from "@/lib/notifications";
 import { ensurePortalRole } from "@/lib/portal-guard";
 import { useAdminSession } from "@/lib/use-portal-session";
 import {
@@ -59,14 +59,21 @@ function AdminLayout() {
     enabled: canQuery,
   });
 
+  const { data: assignedTickets } = useQuery({
+    queryKey: ["assigned-tickets"],
+    queryFn: () => api.listAssignedTickets("admin"),
+    enabled: canQuery,
+  });
+
   const notifications = useMemo(
     () => [
       ...liveNotifications,
       ...messageNotifications,
       ...pokeNotifications,
+      ...assignedPersonnelNotifications(assignedTickets?.items ?? [], "/admin/requests/$ticketId"),
       ...adminApprovalNotifications(tickets?.items ?? []),
     ],
-    [liveNotifications, messageNotifications, pokeNotifications, tickets?.items],
+    [liveNotifications, messageNotifications, pokeNotifications, assignedTickets?.items, tickets?.items],
   );
 
   return (
@@ -102,7 +109,7 @@ function AdminLayout() {
               badge: tickets?.pendingCount ?? notifications.length,
             },
             { to: ADMIN_REQUESTS, label: "Request Management", icon: Ticket },
-            { to: ADMIN_ASSIGNED, label: "My Assignments", icon: UserCheck },
+            { to: ADMIN_ASSIGNED, label: "Assigned to me", icon: UserCheck, badge: assignedTickets?.items.length },
             { to: ADMIN_MY_REQUESTS, label: "My Requests", icon: Inbox },
             { to: ADMIN_MY_REQUESTS_SUBMIT, label: "Submit Request", icon: Send },
           ],

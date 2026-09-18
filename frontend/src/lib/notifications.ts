@@ -59,6 +59,27 @@ export function recordsPendingNotifications(
   }));
 }
 
+export function assignedPersonnelNotifications(
+  tickets: Array<{
+    _id: string;
+    ticketNumber: string;
+    formTitle: string;
+    creatorName: string;
+    updatedAt?: string;
+    createdAt: string;
+  }>,
+  detailPath: "/client/requests/$ticketId" | "/admin/requests/$ticketId",
+): NotificationItem[] {
+  return tickets.slice(0, 8).map((t) => ({
+    id: `assigned-${t._id}`,
+    title: t.ticketNumber,
+    message: `You were assigned to this request (${t.formTitle} · ${t.creatorName})`,
+    time: t.updatedAt ?? t.createdAt,
+    to: detailPath,
+    params: { ticketId: t._id },
+  }));
+}
+
 export function clientTicketNotifications(
   tickets: Array<{
     _id: string;

@@ -24,6 +24,7 @@ class FormService
     {
         $body = $this->normalizeFormBody($body);
         $actionOfficers = $this->normalizeActionOfficers($body['actionOfficers'] ?? []);
+        $this->assertActionOfficersUnique($actionOfficers);
 
         $form = Form::create([
             'title' => (string) ($body['title'] ?? ''),
@@ -100,6 +101,7 @@ class FormService
             $value = $body[$camel];
             if ($snake === 'action_officers') {
                 $value = $this->normalizeActionOfficers($value);
+                $this->assertActionOfficersUnique($value);
                 $form->action_officers = $value;
                 $form->action_officer_count = max(1, count($value));
                 continue;
@@ -391,6 +393,17 @@ class FormService
         $body['fields'] = FormFields::normalize($body['fields']);
 
         return $body;
+    }
+
+    /**
+     * @param  list<array{userId: string, name: string}>  $officers
+     */
+    private function assertActionOfficersUnique(array $officers): void
+    {
+        $ids = array_column($officers, 'userId');
+        if (count($ids) !== count(array_unique($ids))) {
+            throw new ApiException(400, 'Each Action Officer can only be selected once.');
+        }
     }
 
     /**

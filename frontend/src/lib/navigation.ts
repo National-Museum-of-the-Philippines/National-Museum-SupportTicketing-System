@@ -33,6 +33,10 @@ export const RECORDS_SETTINGS = "/records/settings";
 export const CLIENT_DASHBOARD = "/client/dashboard";
 export const CLIENT_SUBMIT = "/client/submit";
 export const CLIENT_REQUESTS = "/client/requests";
+export const CLIENT_REVIEW_RECOMMENDING = "/client/for-review-recommending";
+export const CLIENT_REVIEW_SUPERVISOR = "/client/for-review-supervisor";
+export const CLIENT_REVIEW_ACTION_OFFICER = "/client/for-review-action-officer";
+export const CLIENT_ASSIGNED = "/client/assigned";
 export const CLIENT_FEEDBACK = "/client/feedback";
 export const CLIENT_MESSAGES = "/client/messages";
 export const CLIENT_SETTINGS = "/client/settings";
@@ -64,6 +68,7 @@ export function dashboardForRole(role: string): string {
   if (isSuperAdminRole(role)) return SUPER_ADMIN_DASHBOARD;
   if (role === "admin") return ADMIN_DASHBOARD;
   if (role === "record_management") return RECORDS_DASHBOARD;
+  if (role === "user") return CLIENT_ASSIGNED;
   if (isClientRole(role)) return CLIENT_DASHBOARD;
   return LOGIN;
 }

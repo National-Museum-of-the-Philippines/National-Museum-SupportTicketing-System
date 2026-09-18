@@ -39,6 +39,9 @@ class Ticket extends Model
         'attachment_mime_type',
         'status',
         'client_approval_stage',
+        'recommending_officer_id',
+        'recommending_officer_section_id',
+        'immediate_supervisor_id',
         'process_owner_approvals_done',
         'process_owner_phase',
         'priority',
@@ -80,6 +83,16 @@ class Ticket extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creator_id');
+    }
+
+    public function recommendingOfficer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'recommending_officer_id');
+    }
+
+    public function immediateSupervisor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'immediate_supervisor_id');
     }
 
     public function assignees(): BelongsToMany
@@ -128,10 +141,34 @@ class Ticket extends Model
             ];
         }
 
+        $recommendingOfficer = null;
+        if ($this->relationLoaded('recommendingOfficer') && $this->recommendingOfficer) {
+            $recommendingOfficer = [
+                '_id' => (string) $this->recommendingOfficer->id,
+                'name' => $this->recommendingOfficer->name,
+                'email' => $this->recommendingOfficer->email,
+            ];
+        } elseif ($this->recommending_officer_id) {
+            $recommendingOfficer = (string) $this->recommending_officer_id;
+        }
+
+        $immediateSupervisor = null;
+        if ($this->relationLoaded('immediateSupervisor') && $this->immediateSupervisor) {
+            $immediateSupervisor = [
+                '_id' => (string) $this->immediateSupervisor->id,
+                'name' => $this->immediateSupervisor->name,
+                'email' => $this->immediateSupervisor->email,
+            ];
+        } elseif ($this->immediate_supervisor_id) {
+            $immediateSupervisor = (string) $this->immediate_supervisor_id;
+        }
+
         return $this->serializeApiAttributes(array_merge([
             'assignedTo' => $assignedTo,
             'formId' => $formId,
             'creatorId' => $creatorId,
+            'recommendingOfficer' => $recommendingOfficer,
+            'immediateSupervisor' => $immediateSupervisor,
         ], $extra), $hidden);
     }
 }

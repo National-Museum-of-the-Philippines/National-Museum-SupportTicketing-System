@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import type { ActionOfficerDraft, FormDraft } from "@/lib/form-builder-store";
 import { useAdminSession } from "@/lib/use-portal-session";
@@ -30,26 +30,18 @@ function syncOfficers(next: ActionOfficerDraft[]) {
   };
 }
 
+/** Role follows position only: the last Action Officer is always Request Management. */
+function officerRole(index: number, count: number) {
+  return index === count - 1 ? "Request Management" : "Approval";
+}
+
 function workflowPreview(officers: ActionOfficerDraft[]): { label: string; role: string }[] {
-  const named = officers.map((o, i) =>
-    o.name.trim() || o.userId.trim() ? o.name.trim() || `Action Officer #${i + 1}` : `Action Officer #${i + 1}`,
-  );
-  const count = Math.max(1, named.length);
-
-  if (count <= 1) {
-    return [
-      { label: named[0], role: "Approval" },
-      { label: named[0], role: "Task Assignment" },
-      { label: "Selected personnel", role: "In Progress" },
-    ];
-  }
-
-  const steps: { label: string; role: string }[] = [];
-  for (let i = 0; i < count - 1; i += 1) {
-    steps.push({ label: named[i], role: "Approval" });
-  }
-  steps.push({ label: named[count - 1], role: "Task Assignment" });
-  steps.push({ label: "Selected personnel", role: "In Progress" });
+  const count = Math.max(1, officers.length);
+  const steps = officers.map((o, i) => ({
+    label: `AO${i + 1}${o.name.trim() ? ` · ${o.name.trim()}` : ""}`,
+    role: officerRole(i, count),
+  }));
+  steps.push({ label: "Assigned personnel", role: "In Progress" });
   return steps;
 }
 
@@ -110,11 +102,19 @@ export function ProcessOwnerApprovalStep({ draft, update }: ProcessOwnerApproval
     update(syncOfficers(officers.filter((_, i) => i !== index)));
   };
 
+  const moveOfficer = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= officers.length) return;
+    const next = [...officers];
+    [next[index], next[target]] = [next[target], next[index]];
+    update(syncOfficers(next));
+  };
+
   return (
     <WizardCard>
       <SectionHeader
-        title="Process Owner Approval"
-        subtitle="Select Action Officers from the form creator's section. Earlier officers approve; the last one assigns the task."
+        title="Workflow"
+        subtitle="Select personnel from your staffinformation section (same section_id as the logged-in admin). AO1 → AOn approve in order; the last Action Officer is Request Management, then assigns personnel."
       />
 
       <div className="mt-6 space-y-3">
@@ -124,7 +124,7 @@ export function ProcessOwnerApprovalStep({ draft, update }: ProcessOwnerApproval
           </h3>
           {sectionName ? (
             <p className="text-xs text-muted-foreground">
-              Active staff from section: <span className="font-medium text-foreground">{sectionName}</span>
+              Personnel in your section: <span className="font-medium text-foreground">{sectionName}</span>
             </p>
           ) : !isLoading ? (
             <p className="text-xs text-amber-800">
@@ -136,6 +136,9 @@ export function ProcessOwnerApprovalStep({ draft, update }: ProcessOwnerApproval
         <div className="space-y-2">
           {officers.map((officer, index) => (
             <div key={`ao-${index}`} className="flex items-center gap-2">
+              <span className="w-9 shrink-0 font-mono text-xs font-semibold text-muted-foreground">
+                AO{index + 1}
+              </span>
               <select
                 className={cn(inputCls, "min-w-0 flex-1")}
                 value={officer.userId}
@@ -155,6 +158,36 @@ export function ProcessOwnerApprovalStep({ draft, update }: ProcessOwnerApproval
                   );
                 })}
               </select>
+              <span
+                className={cn(
+                  "hidden w-36 shrink-0 rounded-full border px-2.5 py-1 text-center text-xs font-medium sm:inline-block",
+                  index === officers.length - 1
+                    ? "border-teal-600/25 bg-teal-50 text-teal-900"
+                    : "border-maroon/20 bg-maroon/5 text-foreground",
+                )}
+              >
+                {officerRole(index, officers.length)}
+              </span>
+              <button
+                type="button"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-input bg-background text-muted-foreground shadow-sm transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-40"
+                onClick={() => moveOfficer(index, -1)}
+                disabled={index === 0}
+                title="Move up"
+                aria-label={`Move Action Officer ${index + 1} up`}
+              >
+                <ChevronUp className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-input bg-background text-muted-foreground shadow-sm transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-40"
+                onClick={() => moveOfficer(index, 1)}
+                disabled={index === officers.length - 1}
+                title="Move down"
+                aria-label={`Move Action Officer ${index + 1} down`}
+              >
+                <ChevronDown className="h-4 w-4" />
+              </button>
               <button
                 type="button"
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-input bg-background text-foreground shadow-sm transition-colors hover:bg-muted/60"
@@ -181,7 +214,7 @@ export function ProcessOwnerApprovalStep({ draft, update }: ProcessOwnerApproval
 
         {!isLoading && staff.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            No active staff found in the form creator&apos;s section.
+            No active admin users found in your section (staffinformation).
           </p>
         ) : null}
       </div>
@@ -201,7 +234,7 @@ export function ProcessOwnerApprovalStep({ draft, update }: ProcessOwnerApproval
               <span
                 className={cn(
                   "rounded-full border px-3 py-1.5 text-sm font-medium",
-                  step.role === "Task Assignment"
+                  step.role === "Request Management"
                     ? "border-teal-600/25 bg-teal-50 text-teal-900"
                     : step.role === "In Progress"
                       ? "border-emerald-600/25 bg-emerald-50 text-emerald-900"

@@ -19,9 +19,8 @@ use Throwable;
  *  {{prof_email}}       = staffs.secondary_email ?? staffs.email
  *  {{prof_designation}} = item_numbers → positions.position_name
  *
- * The MySQL views `staffinformation` / `staffinformations` are broken (SELECT 1 AS …)
- * so profile fields are read from staffs, staff_appointment, item_numbers, positions,
- * sections, and staff_role.
+ * Profile fields are read from staffs, staff_appointment, item_numbers, positions,
+ * sections, and staff_role rather than the `staffinformation` view.
  */
 class PamanaEmployeeService
 {
@@ -221,6 +220,37 @@ class PamanaEmployeeService
             Log::warning('Pamana resolve user id failed', ['error' => $e->getMessage()]);
         }
 
+        // Most museum staff exist in `staffs` (user_id = org users.id) but not in PAMANA `user`.
+        try {
+            $staffByOrgId = DB::connection('pamana')->selectOne(
+                "SELECT CAST(user_id AS CHAR) AS user_id
+                 FROM staffs
+                 WHERE CAST(user_id AS CHAR) COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
+                 LIMIT 1",
+                [$orgId],
+            );
+            $staffId = trim((string) ($staffByOrgId->user_id ?? ''));
+            if ($staffId !== '') {
+                return $staffId;
+            }
+
+            if ($email !== '') {
+                $staffByEmail = DB::connection('pamana')->selectOne(
+                    "SELECT CAST(user_id AS CHAR) AS user_id
+                     FROM staffs
+                     WHERE LOWER(TRIM(email)) = ? OR LOWER(TRIM(IFNULL(secondary_email, ''))) = ?
+                     LIMIT 1",
+                    [$email, $email],
+                );
+                $staffId = trim((string) ($staffByEmail->user_id ?? ''));
+                if ($staffId !== '') {
+                    return $staffId;
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('Pamana staffs user_id fallback failed', ['error' => $e->getMessage()]);
+        }
+
         return null;
     }
 
@@ -397,7 +427,7 @@ class PamanaEmployeeService
             return null;
         }
 
-        // Division/Section on TA form: section name from staffinformations (via section_id).
+        // Division/Section on TA form: section name from staffinformation (via section_id).
         $division = $sectionName !== '' ? $sectionName : $sectionId;
 
         // Middle Initial box on Support Ticketing System forms: first letter of middle_name.
@@ -491,16 +521,28 @@ class PamanaEmployeeService
     }
 
     /**
-     * Action Officer dropdown: staff in the form creator's PAMANA section
-     * (staffinformations.section_id / staff_role + item_numbers) whose
-     * appointment status is Active.
+     * Action Officer dropdown: active staff in `staffinformation` whose
+     * `section_id` matches the logged-in admin, excluding PAMANA user_id 1.
      *
      * @return array{users: list<array{_id: string, name: string, email: string, division: string}>, sectionId: string, sectionName: string}
      */
     public function listActionOfficersForCreator(User $creator): array
     {
-        $pamanaUserId = $this->pamanaStaffUserIdForTicketingUser($creator);
-        $sectionId = $pamanaUserId !== null ? $this->sectionIdForPamanaUser($pamanaUserId) : '';
+        return $this->listStaffInSameSection($creator, false);
+    }
+
+    /**
+     * Active staff in the logged-in user's PAMANA `staffinformation.section_id`.
+     *
+     * @return array{users: list<array{_id: string, name: string, email: string, division: string}>, sectionId: string, sectionName: string}
+     */
+    public function listStaffInSameSection(User $actor, bool $adminsOnly = false): array
+    {
+        $pamanaUserId = $this->pamanaStaffUserIdForTicketingUser($actor);
+        $sectionId = $pamanaUserId !== null ? $this->sectionIdFromStaffinformation($pamanaUserId) : '';
+        if ($sectionId === '' && $pamanaUserId !== null) {
+            $sectionId = $this->sectionIdForPamanaUser($pamanaUserId);
+        }
         $sectionName = $sectionId !== '' ? $this->sectionName($sectionId) : '';
 
         if ($sectionId === '') {
@@ -515,20 +557,55 @@ class PamanaEmployeeService
             if (! $mapped) {
                 continue;
             }
+            if ($adminsOnly && ! $this->isAdminUser(User::query()->find($mapped['_id']))) {
+                continue;
+            }
             if (isset($seen[$mapped['_id']])) {
                 continue;
             }
             $seen[$mapped['_id']] = true;
+            $mapped['_sortLast'] = mb_strtolower(trim((string) ($row->last_name ?? '')));
+            $mapped['_sortFirst'] = mb_strtolower(trim((string) ($row->first_name ?? '')));
             $users[] = $mapped;
         }
 
-        usort($users, fn ($a, $b) => strcasecmp($a['name'], $b['name']));
+        usort($users, function ($a, $b) {
+            $last = strcasecmp($a['_sortLast'], $b['_sortLast']);
+
+            return $last !== 0 ? $last : strcasecmp($a['_sortFirst'], $b['_sortFirst']);
+        });
+
+        $users = array_map(function (array $u) {
+            unset($u['_sortLast'], $u['_sortFirst']);
+
+            return $u;
+        }, $users);
 
         return [
             'users' => $users,
             'sectionId' => $sectionId,
             'sectionName' => $sectionName,
         ];
+    }
+
+    /**
+     * Admin for the ticketing system: `users_` role, or the org (Spatie) role that
+     * login applies to `users_` on the next sign-in.
+     */
+    public function isAdminUser(?User $user): bool
+    {
+        if (! $user || ! $user->active) {
+            return false;
+        }
+        if (in_array($user->role, ['admin', 'super_admin'], true)) {
+            return true;
+        }
+        if ($user->role === 'record_management') {
+            return false;
+        }
+        $org = OrgUser::query()->whereRaw('LOWER(email) = ?', [strtolower(trim((string) $user->email))])->first();
+
+        return $org !== null && in_array($org->ticketingRole(), ['admin', 'super_admin'], true);
     }
 
     private function pamanaStaffUserIdForTicketingUser(User $user): ?string
@@ -567,6 +644,31 @@ class PamanaEmployeeService
         }
 
         return null;
+    }
+
+    /** Logged-in admin's section from pamana `staffinformation.section_id`. */
+    private function sectionIdFromStaffinformation(string $pamanaUserId): string
+    {
+        try {
+            $row = DB::connection('pamana')->selectOne(
+                "SELECT NULLIF(TRIM(section_id), '') AS section_id
+                 FROM staffinformation
+                 WHERE CAST(user_id AS CHAR) COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
+                   AND section_id IS NOT NULL
+                   AND TRIM(section_id) <> ''
+                 LIMIT 1",
+                [$pamanaUserId],
+            );
+
+            return trim((string) ($row->section_id ?? ''));
+        } catch (Throwable $e) {
+            Log::warning('staffinformation section_id lookup failed', [
+                'pamanaUserId' => $pamanaUserId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return '';
+        }
     }
 
     private function sectionIdForPamanaUser(string $pamanaUserId): string
@@ -613,6 +715,215 @@ class PamanaEmployeeService
         }
     }
 
+    /**
+     * staff_role holds one row per section — its supervisory head (user_id) and that
+     * head's own supervisor (supervisor_id), e.g. a Section Head whose supervisor_id
+     * points to their Division Head.
+     *
+     * @return array{userId: string, supervisorId: string}|null
+     */
+    private function staffRoleForSection(string $sectionId): ?array
+    {
+        try {
+            $row = DB::connection('pamana')->selectOne(
+                "SELECT
+                    NULLIF(TRIM(user_id), '') AS user_id,
+                    NULLIF(TRIM(supervisor_id), '') AS supervisor_id
+                 FROM staff_role
+                 WHERE section_id COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
+                   AND (deleted = 0 OR deleted IS NULL)
+                   AND user_id IS NOT NULL
+                   AND TRIM(user_id) <> ''
+                 ORDER BY updated_at DESC
+                 LIMIT 1",
+                [$sectionId],
+            );
+        } catch (Throwable $e) {
+            Log::warning('Pamana staff_role section lookup failed', [
+                'sectionId' => $sectionId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        if (! $row) {
+            return null;
+        }
+
+        return [
+            'userId' => trim((string) ($row->user_id ?? '')),
+            'supervisorId' => trim((string) ($row->supervisor_id ?? '')),
+        ];
+    }
+
+    /**
+     * Resolve (and provision if needed) the ticketing-system User for a PAMANA staff
+     * user_id, so a specific person — e.g. an Immediate Supervisor — can be assigned
+     * to and enforced on a ticket, the same way listActionOfficersForCreator() does
+     * for Action Officer candidates.
+     *
+     * @return array{userId: string, name: string, email: string}|null
+     */
+    private function resolveTicketingUserForStaffId(string $pamanaStaffUserId): ?array
+    {
+        $pamanaStaffUserId = trim($pamanaStaffUserId);
+        if ($pamanaStaffUserId === '') {
+            return null;
+        }
+
+        $profile = $this->loadByStaffUserId($pamanaStaffUserId);
+
+        $org = OrgUser::query()->find((int) $pamanaStaffUserId);
+        if (! $org) {
+            try {
+                $login = DB::connection('pamana')->selectOne(
+                    'SELECT username FROM `user` WHERE id = ? LIMIT 1',
+                    [$pamanaStaffUserId],
+                );
+            } catch (Throwable) {
+                $login = null;
+            }
+            $username = strtolower(trim((string) ($login->username ?? '')));
+            if ($username !== '') {
+                $org = OrgUser::query()->whereRaw('LOWER(username) = ?', [$username])->first();
+            }
+        }
+
+        if (! $org || ! $org->is_active) {
+            return null;
+        }
+
+        $email = strtolower(trim((string) $org->email));
+        if ($email === '') {
+            return null;
+        }
+
+        $user = User::query()->where('email', $email)->first();
+        if (! $user) {
+            $user = User::create([
+                'id' => Id::newId(),
+                'email' => $email,
+                'password_hash' => (string) $org->password,
+                'name' => $profile && $profile['name'] !== '' ? $profile['name'] : $org->displayName(),
+                'role' => $org->ticketingRole(),
+                'division' => $profile['division'] ?? '',
+                'designation' => $profile['designation'] ?? '',
+                'active' => true,
+            ]);
+        }
+
+        if (! $user->active) {
+            return null;
+        }
+
+        return [
+            'userId' => (string) $user->id,
+            'name' => $profile && $profile['name'] !== '' ? $profile['name'] : $user->name,
+            'email' => $user->email,
+        ];
+    }
+
+    /**
+     * Client Request Recommendation & Routing.
+     *
+     * 1. Submitter identity — org `users.id` → PAMANA `staffs.user_id` (then section).
+     * 2. Recommendation — Recommending Officer: `staff_role.user_id` for that section_id
+     *    (the submitter's supervisor / section head).
+     * 3. Immediate Supervisor: that `staff_role.supervisor_id` (skipped when the same person).
+     *
+     * @return array{
+     *   sectionId: string,
+     *   recommendingOfficer: array{userId: string, name: string, email: string}|null,
+     *   supervisor: array{userId: string, name: string, email: string}|null
+     * }
+     */
+    public function clientApprovalRoutingFor(User $user): array
+    {
+        $pamanaUserId = $this->pamanaStaffUserIdForTicketingUser($user);
+        $sectionId = $pamanaUserId !== null ? $this->sectionIdFromStaffinformation($pamanaUserId) : '';
+        if ($sectionId === '' && $pamanaUserId !== null) {
+            $sectionId = $this->sectionIdForPamanaUser($pamanaUserId);
+        }
+
+        $recommendingOfficer = null;
+        $supervisor = null;
+        if ($sectionId !== '') {
+            $staffRole = $this->staffRoleForSection($sectionId);
+            if ($staffRole) {
+                $recommendingOfficer = $staffRole['userId'] !== ''
+                    ? $this->resolveTicketingUserForStaffId($staffRole['userId'])
+                    : null;
+                $supervisor = $staffRole['supervisorId'] !== ''
+                    ? $this->resolveTicketingUserForStaffId($staffRole['supervisorId'])
+                    : null;
+            }
+        }
+
+        return [
+            'sectionId' => $sectionId,
+            'recommendingOfficer' => $recommendingOfficer,
+            'supervisor' => $supervisor,
+        ];
+    }
+
+    /**
+     * Who may open For Review: distinct PAMANA `staff_role.user_id` (recommending)
+     * vs distinct `staff_role.supervisor_id` (immediate supervisor), mapped to
+     * section_ids this ticketing user covers.
+     *
+     * @return array{recommendingSectionIds: list<string>, supervisorSectionIds: list<string>}
+     */
+    public function clientReviewRolesFor(User $user): array
+    {
+        $empty = ['recommendingSectionIds' => [], 'supervisorSectionIds' => []];
+        $pamanaId = $this->pamanaStaffUserIdForTicketingUser($user);
+        if ($pamanaId === null || $pamanaId === '') {
+            return $empty;
+        }
+
+        try {
+            $rows = DB::connection('pamana')->select(
+                "SELECT DISTINCT
+                    NULLIF(TRIM(section_id), '') AS section_id,
+                    NULLIF(TRIM(user_id), '') AS user_id,
+                    NULLIF(TRIM(supervisor_id), '') AS supervisor_id
+                 FROM staff_role
+                 WHERE (deleted = 0 OR deleted IS NULL)
+                   AND section_id IS NOT NULL
+                   AND TRIM(section_id) <> ''",
+            );
+        } catch (Throwable $e) {
+            Log::warning('Pamana staff_role distinct role lookup failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return $empty;
+        }
+
+        $recommending = [];
+        $supervisor = [];
+        foreach ($rows as $row) {
+            $sectionId = trim((string) ($row->section_id ?? ''));
+            $roleUserId = trim((string) ($row->user_id ?? ''));
+            $roleSupervisorId = trim((string) ($row->supervisor_id ?? ''));
+            if ($sectionId === '') {
+                continue;
+            }
+            if ($roleUserId !== '' && $roleUserId === $pamanaId) {
+                $recommending[$sectionId] = true;
+            }
+            if ($roleSupervisorId !== '' && $roleSupervisorId === $pamanaId) {
+                $supervisor[$sectionId] = true;
+            }
+        }
+
+        return [
+            'recommendingSectionIds' => array_keys($recommending),
+            'supervisorSectionIds' => array_keys($supervisor),
+        ];
+    }
+
     private function sectionName(string $sectionId): string
     {
         try {
@@ -643,41 +954,19 @@ class PamanaEmployeeService
         try {
             return DB::connection('pamana')->select(
                 "SELECT
-                    st.user_id,
-                    TRIM(st.first_name) AS first_name,
-                    TRIM(st.middle_name) AS middle_name,
-                    TRIM(st.last_name) AS last_name,
-                    st.email AS staff_email,
-                    st.secondary_email,
-                    soa.status_of_name AS appointment_status
-                 FROM staffs st
-                 INNER JOIN (
-                    SELECT CAST(sa.user_id AS CHAR) COLLATE utf8mb4_unicode_ci AS user_id
-                    FROM staff_appointment sa
-                    INNER JOIN item_numbers it
-                        ON it.id COLLATE utf8mb4_unicode_ci = sa.item_number_id COLLATE utf8mb4_unicode_ci
-                    WHERE (sa.deleted = 0 OR sa.deleted IS NULL)
-                      AND it.sections_id COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
-                    UNION
-                    SELECT CAST(sr.user_id AS CHAR) COLLATE utf8mb4_unicode_ci AS user_id
-                    FROM staff_role sr
-                    WHERE (sr.deleted = 0 OR sr.deleted IS NULL)
-                      AND sr.section_id COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
-                 ) members
-                    ON members.user_id = st.user_id COLLATE utf8mb4_unicode_ci
-                 LEFT JOIN status_of_appointment soa
-                    ON soa.id COLLATE utf8mb4_unicode_ci = st.status_of_appointment_id COLLATE utf8mb4_unicode_ci
-                 WHERE (st.deleted = 0 OR st.deleted IS NULL)
-                   AND (
-                        LOWER(TRIM(COALESCE(soa.status_of_name, ''))) = 'active'
-                        OR LOWER(TRIM(COALESCE(st.status_of_appointment_id, ''))) = 'unassigned'
-                        OR soa.id IS NULL
-                   )
-                   AND LOWER(TRIM(COALESCE(soa.status_of_name, ''))) NOT IN (
-                        'retired', 'resigned', 'end of contract/term', 'transferred', 'terminated', 'deceased'
-                   )
-                 ORDER BY st.last_name, st.first_name",
-                [$sectionId, $sectionId],
+                    si.user_id,
+                    TRIM(si.first_name) AS first_name,
+                    TRIM(si.middle_name) AS middle_name,
+                    TRIM(si.last_name) AS last_name,
+                    si.appointment_status
+                 FROM staffinformation si
+                 WHERE si.section_id COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
+                   AND si.user_id IS NOT NULL
+                   AND TRIM(si.user_id) <> ''
+                   AND CAST(si.user_id AS CHAR) COLLATE utf8mb4_unicode_ci <> '1'
+                   AND LOWER(TRIM(COALESCE(si.appointment_status, ''))) = 'active'
+                 ORDER BY si.last_name, si.first_name",
+                [$sectionId],
             );
         } catch (Throwable $e) {
             Log::warning('Pamana active section staff lookup failed', [

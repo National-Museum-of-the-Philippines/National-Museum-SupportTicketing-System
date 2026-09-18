@@ -24,7 +24,8 @@ function RequestsPage() {
   const [viewTicket, setViewTicket] = useState<{ id: string; number: string } | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["all-tickets"],
-    queryFn: () => api.listTickets(undefined, "admin"),
+    // Workflow forms: after Action Officer approval, Request Management (any admin).
+    queryFn: () => api.listTickets({ scope: "management" }, "admin"),
     enabled: canQuery,
   });
 
@@ -34,7 +35,7 @@ function RequestsPage() {
     <div className="page-shell">
       <WorkspacePageHeader
         title="Request Management"
-        description="Track all client technical assistance requests from submission through resolution."
+        description="Assign personnel after Action Officer approval, then track requests through resolution."
       />
 
       <DataPanel title={`${items.length} request${items.length === 1 ? "" : "s"}`}>

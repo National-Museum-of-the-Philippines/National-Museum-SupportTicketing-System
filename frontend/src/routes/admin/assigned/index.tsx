@@ -32,7 +32,7 @@ function AssignedRequestsPage() {
   return (
     <div className="page-shell">
       <WorkspacePageHeader
-        title="My Assigned Requests"
+        title="Assigned to me"
         description="Requests assigned to you. When work is finished, the client marks the service complete, submits feedback, and closes the request."
       />
 
