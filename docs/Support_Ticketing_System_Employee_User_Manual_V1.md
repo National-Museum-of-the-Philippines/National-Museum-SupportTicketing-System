@@ -1,8 +1,8 @@
 NATIONAL MUSEUM OF THE PHILIPPINES
 Support Ticketing System
 Employee User Manual
-Version 2.2
-4 September 2026
+Version 2.3
+22 September 2026
 
 Table of Contents
 1 Introduction
@@ -22,15 +22,16 @@ Table of Contents
 3.4.4 Published Forms
 3.4.5 Approvals
 3.4.6 Request Management
-3.4.7 My Assignments
-3.4.8 Submit Request
-3.4.9 My Requests
-3.4.10 Service Feedback
-3.4.11 Messages
-3.4.12 Reports and Analytics
-3.4.13 Users, Roles, and Permissions
-3.4.14 Activity Logs
-3.4.15 Settings
+3.4.7 Assigned to me
+3.4.8 For Review (Client approval queues)
+3.4.9 Submit Request
+3.4.10 My Requests
+3.4.11 Service Feedback
+3.4.12 Messages
+3.4.13 Reports and Analytics
+3.4.14 Users, Roles, and Permissions
+3.4.15 Activity Logs
+3.4.16 Settings
 3.5 Daily Activity / Notifications
 
 1. Introduction
@@ -40,7 +41,7 @@ The Support Ticketing System (STS) is a centralized, general-purpose platform de
 
 Authorized Admin users can build and publish any request form that fits the Form Builder (fields, printable template, and optional procedure document). Once Records publishes a form, all Staff users (Client portal) may select that form and submit a request. The same workflow applies regardless of the form’s subject matter, as long as the form was created for and accepted by the system.
 
-This manual serves as a guide for authorized employees in using the Support Ticketing System. It covers logging in and navigating the dashboard, managing forms (Form Builder, My Forms, Pending Forms, Published Forms), managing requests (Approvals, Request Management, My Assignments, Submit Request, My Requests, Service Feedback), messaging, reports, role-based access control, activity logs, and account settings.
+This manual serves as a guide for authorized employees in using the Support Ticketing System. It covers logging in and navigating the dashboard, managing forms (Form Builder, My Forms, Pending Forms, Published Forms), managing requests (Approvals, Request Management, Assigned to me, For Review queues, Submit Request, My Requests, Service Feedback), messaging, reports, role-based access control, activity logs, and account settings.
 
 The Support Ticketing System aims to improve efficiency, accountability, and transparency in handling staff requests by reducing manual paperwork, minimizing delays, ensuring requestor details are accurate through PAMANA employee autofill, and providing a clear audit trail for every form and ticket processed within the system. This manual is intended for Super Admin, Admin, Record Admin, and Staff users responsible for maintaining and operating the platform according to their assigned role.
 
@@ -55,11 +56,11 @@ The Support Ticketing System aims to make the creation, review, submission, appr
 1.3 User’s Role, Access and Permission
 1.3.1 Super Admin has the highest level of system access and is responsible for overall system administration, including managing user roles and permissions (Users, Roles, Permissions), viewing system-wide dashboards and activity logs, opening Admin, Records, and Staff/Client portals with one account, and switching portals through SWITCH PORTAL without signing out.
 
-1.3.2 Admin (Section Head — ODG Section and Regional Component Museum; Division Head — All except ODG) is responsible for creating request forms in Form Builder (any form that fits the system), managing My Forms, approving or rejecting staff requests, assigning personnel from the form creator’s division, tracking My Assignments, submitting personal requests when needed (Submit Request / My Requests), using Reports and Messages, and updating ticket status where allowed.
+1.3.2 Admin (Section Head — ODG Section and Regional Component Museum; Division Head — All except ODG) is responsible for creating request forms in Form Builder (any form that fits the system), managing My Forms, approving or rejecting staff requests (including Action Officer workflow steps when configured), assigning personnel from the form creator’s division, tracking Assigned to me, submitting personal requests when needed (Submit Request / My Requests), using Reports and Messages, and updating ticket status where allowed.
 
 1.3.3 Record Admin is responsible for managing and monitoring form review and publishing within the system, including Pending Forms, Published Forms, and Activity Logs, and ensuring that form-handling procedures (Approve & publish or Disapprove with remarks) are properly followed.
 
-1.3.4 Staff (Client) — general museum staff — is responsible for submitting requests using any published form available in the system, tracking My Requests, marking service complete, submitting Client Satisfaction Survey feedback, closing or reopening requests, and using Messages. All staff with Client access may use the published forms that apply to their needs.
+1.3.4 Staff (Client) — general museum staff — is responsible for submitting requests using any published form available in the system, reviewing requests in For Review queues when configured (Recommending Officer, Immediate Supervisor, Action Officer), tracking Assigned to me and My Requests, marking service complete, submitting Client Satisfaction Survey feedback, closing or reopening requests, and using Messages. Staff users land on Assigned to me after login. All staff with Client access may use the published forms that apply to their needs.
 
 2. General Information
 The Support Ticketing System (STS) of the National Museum of the Philippines (NMP) aims to provide a centralized and efficient platform for monitoring, managing, and tracking staff support / service requests within the organization. It is a general system for museum staff: offices may publish forms suited to their services, and staff may submit requests using those published forms. The system will improve request visibility, accountability, processing efficiency, and timely action by authorized personnel and offices.
@@ -68,7 +69,7 @@ The Support Ticketing System (STS) of the National Museum of the Philippines (NM
 The Support Ticketing System aims to make the creation, review, submission, approval, assignment, monitoring, and closure of staff requests easier and more organized for the whole museum workforce with access. It helps users quickly check the status and progress of forms and tickets, reduce delays, and keep a clear record of transactions. The system also provides reports and updates to help offices monitor pending and completed requests. Only forms that fit the Form Builder and are published by Records are available for submission.
 
 2.2 System Features
-2.2.1 Form Builder. The system allows authorized Admin users to create general request forms that fit the platform through a guided wizard (General, Fields, Print Template, Supporting Doc), place fields on a printable PDF template (multi-page PDFs are stacked for mapping), upload an optional supporting PDF, and submit the form to Records for review, or save it as a draft. Form content is defined by the Admin (for example facilities, administrative, ICT, collections support, or other office services) — the system is not limited to a single request type.
+2.2.1 Form Builder. The system allows authorized Admin users to create general request forms that fit the platform through a guided six-step wizard (General, Fields, Print Template, Client Request Approval, Workflow, Supporting Doc), place fields on a printable PDF template (multi-page PDFs are stacked for mapping), configure optional client-side approval (Recommending Officer and/or Immediate Supervisor) and Action Officer workflow, upload an optional supporting PDF, and submit the form to Records for review, or save it as a draft. Form content is defined by the Admin (for example facilities, administrative, ICT, collections support, or other office services) — the system is not limited to a single request type.
 
 2.2.2 Form Information Management. The system stores important form details such as form title, reference number, date effectivity, version number, field definitions, print layout placements, supporting document, status (Draft, Pending Review, Published, Disapproved), and related analytics.
 
@@ -78,7 +79,7 @@ The Support Ticketing System aims to make the creation, review, submission, appr
 
 2.2.5 Request Approval. The system allows Admin users to approve or reject pending client requests. When a request is approved, the ticket status becomes Open. When rejected, a rejection reason is required.
 
-2.2.6 Personnel Assignment. The system allows Admin users to assign Open tickets to active Admin personnel belonging to the same division as the form creator. Assignment sets the ticket status to In Progress. Assignees track work under My Assignments.
+2.2.6 Personnel Assignment. The system allows Admin users (or the last Action Officer in a configured workflow) to assign Open tickets to active Admin personnel belonging to the same division as the form creator. Assignment sets the ticket status to In Progress. Assignees track work under Assigned to me.
 
 2.2.7 Ticket Status Tracking. The system allows users to monitor the current status of each ticket, such as pending approval, open, in progress, pending, resolved, closed, rejected, or reopened.
 
@@ -105,11 +106,11 @@ The Support Ticketing System aims to make the creation, review, submission, appr
 2.3 System Users and Their Descriptions
 2.3.1 Super Admin has the highest level of system access and is responsible for overall system administration, including managing user roles, permissions, portal access, system dashboards, activity logs, and other administrative functions.
 
-2.3.2 Admin is responsible for Form Builder and My Forms, Approvals, Request Management, My Assignments, My Requests / Submit Request, Reports, and Messages.
+2.3.2 Admin is responsible for Form Builder and My Forms, Approvals, Request Management, Assigned to me, My Requests / Submit Request, Reports, and Messages.
 
 2.3.3 Record Admin is responsible for managing and monitoring form review and publishing, including Pending Forms, Published Forms, and Activity Logs.
 
-2.3.4 Staff (Client) is responsible for submitting and tracking their own requests using published forms, marking service complete, submitting feedback, closing or reopening requests, and using Messages.
+2.3.4 Staff (Client) is responsible for submitting and tracking their own requests using published forms, acting on For Review queues when assigned, working on Assigned to me items, marking service complete, submitting feedback, closing or reopening requests, and using Messages.
 
 3. Getting Started
 
@@ -169,7 +170,7 @@ Figure 8 – Super Admin navigation and SWITCH PORTAL
 3.3.3 Admin Navigation
 3.3.3.1 MAIN. Dashboard; Reports; Messages.
 3.3.3.2 FORMS. Form Builder; My Forms.
-3.3.3.3 REQUESTS. Approvals (with badge count); Request Management; My Assignments; My Requests; Submit Request.
+3.3.3.3 REQUESTS. Approvals (with badge count); Request Management; Assigned to me (with badge); My Requests; Submit Request.
 Note: RBAC (Users, Roles, Permissions) is not listed under Admin. Manage RBAC in Super Admin only.
 
 *[Screenshot placeholder]*
@@ -183,8 +184,9 @@ Note: Messaging is not available in the Records portal.
 *[Screenshot placeholder]*
 Figure 10 – Records navigation
 3.3.5 Client Navigation
-3.3.5.1 MAIN. Dashboard; Messages.
-3.3.5.3 REQUESTS. Submit Request; My Requests (badge); Service Feedback (badge).
+3.3.5.1 MAIN. Dashboard; Assigned to me (badge); Messages.
+3.3.5.2 REQUESTS. For Review (Recommending) (badge); For Review (Supervisor) (badge); For Review (Action Officer) (badge); Submit Request; My Requests (badge); Service Feedback (badge).
+Note: Staff users are redirected to Assigned to me after login instead of Dashboard.
 
 *[Screenshot placeholder]*
 Figure 11 – Client navigation
@@ -192,7 +194,7 @@ Figure 11 – Client navigation
 The Support Ticketing Modules section provides access to the main operational features of the system. Users can create and review forms, approve and assign requests, submit and complete tickets, exchange messages, view reports, manage roles (Super Admin), and configure account settings. The modules available to a user depend on the assigned role and portal.
 
 3.4.1 Form Builder
-3.4.1.1 Form Builder allows authorized Admin users to create any request form that fits the system through a guided wizard. The page header shows the form title (or New request form), the description Build fields and print layout, then submit to Records for review, and meta information such as reference number and version. The wizard consists of four steps: General, Fields, Print Template, and Supporting Doc. Users move between steps using Back and Continue. On the final step, users may click Submit to Records or Save as draft instead.
+3.4.1.1 Form Builder allows authorized Admin users to create any request form that fits the system through a guided wizard. The page header shows the form title (or New request form), the description Build fields and print layout, then submit to Records for review, and meta information such as reference number and version. The wizard consists of six steps: General, Fields, Print Template, Client Request Approval, Workflow, and Supporting Doc. Users move between steps using Back and Continue. On the final step, users may click Submit to Records or Save as draft instead.
 
 *[Screenshot placeholder]*
 Figure 12 – Form Builder — wizard overview
@@ -226,14 +228,28 @@ Figure 15 – Form Builder Step 3 — Print Template placement
 
 *[Screenshot placeholder]*
 Figure 16 – Print preview dialog
-3.4.1.5 Step 4. Supporting Doc. Optionally upload a supporting PDF that accompanies the form (SOP, guidelines, or related document) (Figure 17):
+3.4.1.5 Step 4. Client Request Approval. Configure whether a submitted request must pass through client-side approval before Process Owner review (Figure 17):
+● Recommending Officer. Toggle Yes/No — when Yes, the requestor’s Recommending Officer must endorse the request before it proceeds.
+● Immediate Supervisor. Toggle Yes/No — when Yes (and Recommending Officer is enabled), the Immediate Supervisor must review after the Recommending Officer.
+● Live Workflow Preview. Shows the approval chain (Client → Recommending Officer → Immediate Supervisor → Process Owner) based on the selected options.
+
+*[Screenshot placeholder]*
+Figure 17 – Form Builder Step 4 — Client Request Approval
+3.4.1.6 Step 5. Workflow. Configure Action Officers who approve requests in sequence before personnel assignment (Figure 18):
+● Action Officer list. Add one or more Action Officers from staff in the same section as the logged-in Admin. Officers approve in order; the last Action Officer becomes Request Management and assigns personnel.
+● Live Workflow Preview. Shows Client approval steps (if any), Action Officer steps, Assigned personnel (In Progress), and completion.
+Note: Forms without Action Officers use the legacy flow where any Admin may approve in Approvals.
+
+*[Screenshot placeholder]*
+Figure 18 – Form Builder Step 5 — Workflow (Action Officers)
+3.4.1.7 Step 6. Supporting Doc. Optionally upload a supporting PDF that accompanies the form (SOP, guidelines, or related document) (Figure 19):
 ● Supporting document. Optional. Upload PDF only (Drop a file or click to browse). Maximum 25 MB.
 ● Success indicator. ✓ {filename} ready for Records review.
 ● Submit to Records. Sends the form for Records recommendation (status Pending Review).
 ● Save as draft instead. Saves without submitting to Records (status Draft).
 
 *[Screenshot placeholder]*
-Figure 17 – Form Builder Step 4 — Supporting Doc and Submit to Records
+Figure 19 – Form Builder Step 6 — Supporting Doc and Submit to Records
 3.4.2 My Forms
 3.4.2.1 My Forms (My Forms Analytics) allows Admin users to view forms they created and related analytics. The page title is My Forms Analytics. The description reads Overview of form submissions and service requests. Users may click + New Form / Create Form to open Form Builder.
 
@@ -291,7 +307,7 @@ Figure 23 – Published Forms list
 3.4.4.2.5 Empty state. No published forms.
 
 3.4.5 Approvals
-3.4.5.1 Approvals allows Admin users to review staff / client requests with status pending approval before assignment and processing. The page description reads: Review client requests before assignment and processing. These requests may come from any published form used by staff. Users may click Refresh.
+3.4.5.1 Approvals allows Admin users to review staff / client requests before assignment and processing. The page description reads: Action Officer queue: sequential approvals, then Request Management assignment. For forms with Action Officer workflow, only the officer whose step it is may approve. For legacy forms, any Admin may approve. These requests may come from any published form used by staff. Users may click Refresh.
 
 *[Screenshot placeholder]*
 Figure 24 – Approvals list
@@ -335,12 +351,12 @@ Figure 29 – Assign personnel sidebar filtered by form owner division
 
 *[Screenshot placeholder]*
 Figure 30 – Update status and Waiting for client notices
-3.4.7 My Assignments
-3.4.7.1 My Assignments (My Assigned Requests) displays requests assigned to the signed-in Admin / assigned personnel for tracking until the client marks the service complete and closes the request.
+3.4.7 Assigned to me
+3.4.7.1 Assigned to me displays requests assigned to the signed-in Admin or Staff user for tracking until the client marks the service complete and closes the request. Staff users land on this page after login.
 
 *[Screenshot placeholder]*
-Figure 31 – My Assignments list
-3.4.7.2 My Assignments List columns
+Figure 31 – Assigned to me list
+3.4.7.2 Assigned to me List columns
 3.4.7.2.1 Ticket. Displays the ticket number.
 3.4.7.2.2 Client. Displays the requestor.
 3.4.7.2.3 Client division. Displays the requestor’s division.
@@ -349,12 +365,25 @@ Figure 31 – My Assignments list
 3.4.7.2.6 Empty state. No assigned requests.
 3.4.7.3 Assignees may coordinate using Request messages / Messages and update status where allowed until the requestor completes the requestor-side workflow.
 
-3.4.8 Submit Request
-3.4.8.1 Submit Request allows Staff (and Admin via Submit Request) to create a new support ticket using any published form available in the system. The page title is Submit Request. The description reads Submitting as {name}. This request will appear in your list only.
+3.4.8 For Review (Client approval queues)
+3.4.8.1 When a published form requires client-side approval, the request passes through For Review queues before reaching Admin Approvals. Available queues in the Client portal:
+● For Review (Recommending) — page title For Review — Recommending Officer. Endorse requests before Immediate Supervisor review.
+● For Review (Supervisor) — page title For Review — Immediate Supervisor. Review requests before Action Officers.
+● For Review (Action Officer) — page title For Review — Action Officer. Sequential Action Officer approval before Request Management assignment.
+3.4.8.2 Each queue lists tickets awaiting the signed-in user’s action. Actions include Approve/Endorse, Reject (with reason), and View PDF. Badge counts appear on the sidebar menu items.
+
+*[Screenshot placeholder]*
+Figure 32a – For Review — Recommending Officer queue
+
+*[Screenshot placeholder]*
+Figure 32b – For Review — Action Officer queue
+
+3.4.9 Submit Request
+3.4.9.1 Submit Request allows Staff (and Admin via Submit Request) to create a new support ticket using any published form available in the system. The page title is Submit Request. The description reads Submitting as {name}. This request will appear in your list only.
 
 *[Screenshot placeholder]*
 Figure 32 – Submit Request page
-3.4.8.2 To submit a new request, complete the following steps:
+3.4.9.2 To submit a new request, complete the following steps:
 Step 1. Choose a form. Under Published form, select the published form needed (option Select a form…). Click View form file to preview the printable template (Figure 33).
 
 *[Screenshot placeholder]*
@@ -370,84 +399,84 @@ Note: Validation may include Fill in at least one field…. Empty published form
 
 *[Screenshot placeholder]*
 Figure 35 – Submit Request — completed fields ready to submit
-3.4.9 My Requests
-3.4.9.1 My Requests allows Staff (and Admin as requestor) to view and manage tickets linked to their account. The page lists Ticket, Form, Status, Assigned to, Submitted, and Action links such as Mark complete →, Submit feedback →, Close request →, and View details. Empty state: No personal requests yet. / related empty message for client list.
+3.4.10 My Requests
+3.4.10.1 My Requests allows Staff (and Admin as requestor) to view and manage tickets linked to their account. The page lists Ticket, Form, Status, Assigned to, Submitted, and Action links such as Mark complete →, Submit feedback →, Close request →, and View details. Empty state: No personal requests yet. / related empty message for client list.
 
 *[Screenshot placeholder]*
 Figure 36 – My Requests list
-3.4.9.2 View Request Details. This page displays the complete information of a selected request and provides requestor actions for completion, feedback, and closure (Figure 37).
-3.4.9.2.1 Main content. Uploaded file, Submitted answers, and Request details.
-3.4.9.2.2 Assigned personnel. Displays the personnel assigned by Admin.
-3.4.9.2.3 Complete service. When status is open, in progress, pending, or reopened, click Mark service complete. Status becomes resolved.
+3.4.10.2 View Request Details. This page displays the complete information of a selected request and provides requestor actions for completion, feedback, and closure (Figure 37).
+3.4.10.2.1 Main content. Uploaded file, Submitted answers, and Request details.
+3.4.10.2.2 Assigned personnel. Displays the personnel assigned by Admin.
+3.4.10.2.3 Complete service. When status is open, in progress, pending, or reopened, click Mark service complete. Status becomes resolved.
 
 *[Screenshot placeholder]*
 Figure 37 – My Request detail — main content and Mark service complete
-3.4.9.2.4 Client Feedback. After resolved:
+3.4.10.2.4 Client Feedback. After resolved:
 1. Open Client Satisfaction Survey
 2. Optionally enter Notes for admin
 3. Click I've submitted feedback
 
 *[Screenshot placeholder]*
 Figure 38 – Client Satisfaction Survey / feedback confirmation
-3.4.9.2.5 Close request. Click Close ticket to set status closed, or Reopen request to set status reopened.
-3.4.9.2.6 Request closed notice. Displays Request closed — Thank you for your feedback.
-3.4.9.2.7 Request messages. Opens a ticket-linked conversation when available.
+3.4.10.2.5 Close request. Click Close ticket to set status closed, or Reopen request to set status reopened.
+3.4.10.2.6 Request closed notice. Displays Request closed — Thank you for your feedback.
+3.4.10.2.7 Request messages. Opens a ticket-linked conversation when available.
 
 *[Screenshot placeholder]*
 Figure 39 – Close ticket / Reopen request
-3.4.10 Service Feedback
-3.4.10.1 Service Feedback displays requests that still need feedback action or are ready to close. Sections include Awaiting feedback and Ready to close (N) with Close request. Empty state: No feedback pending. A warning appears if the Client Satisfaction Survey URL is not configured.
+3.4.11 Service Feedback
+3.4.11.1 Service Feedback displays requests that still need feedback action or are ready to close. Sections include Awaiting feedback and Ready to close (N) with Close request. Empty state: No feedback pending. A warning appears if the Client Satisfaction Survey URL is not configured.
 
 *[Screenshot placeholder]*
 Figure 40 – Service Feedback page
-3.4.11 Messages
-3.4.11.1 Messages (Admin and Client portals) provides real-time group chat and direct messages. The page title is Messages. The description reads Real-time group chat and direct messages with admin, records, and clients. The sidebar shows Chats and New. Empty states: No chats yet. / Select a chat….
+3.4.12 Messages
+3.4.12.1 Messages (Admin and Client portals) provides real-time group chat and direct messages. The page title is Messages. The description reads Real-time group chat and direct messages with admin, records, and clients. The sidebar shows Chats and New. Empty states: No chats yet. / Select a chat….
 
 *[Screenshot placeholder]*
 Figure 41 – Messages — chat list
-3.4.11.2 New message. Click New to open the New message dialog. Search by name, email, or division. Sections may group Admin / Clients. Compose a Message or use Poke (Figure 42).
+3.4.12.2 New message. Click New to open the New message dialog. Search by name, email, or division. Sections may group Admin / Clients. Compose a Message or use Poke (Figure 42).
 
 *[Screenshot placeholder]*
 Figure 42 – New message dialog
-3.4.11.3 Active thread. Select a chat to view messages. Use the composer and Send. Use Poke to nudge participants. From a ticket detail page, open Request messages for a ticket-linked thread (Figure 43).
+3.4.12.3 Active thread. Select a chat to view messages. Use the composer and Send. Use Poke to nudge participants. From a ticket detail page, open Request messages for a ticket-linked thread (Figure 43).
 
 *[Screenshot placeholder]*
 Figure 43 – Active chat thread and Request messages
-3.4.12 Reports and Analytics
-3.4.12.1 Reports & Analytics (Admin and Super Admin) provides summaries of request volume, completion, and client feedback. Stats include Total requests, Pending approval, Closed, and With feedback. Feedback table columns: Ticket | Client | Comment | Action (View request). Empty state: No feedback yet.
+3.4.13 Reports and Analytics
+3.4.13.1 Reports & Analytics (Admin and Super Admin) provides summaries of request volume, completion, and client feedback. Stats include Total requests, Pending approval, Closed, and With feedback. Feedback table columns: Ticket | Client | Comment | Action (View request). Empty state: No feedback yet.
 
 *[Screenshot placeholder]*
 Figure 44 – Reports & Analytics
-3.4.13 Users, Roles, and Permissions
-3.4.13.1 Users, Roles, and Permissions are available only in the Super Admin portal. Admin RBAC routes redirect away from Admin. The RBAC shell provides tabs Users | Roles | Permissions and breadcrumb Home / RBAC / {page}.
+3.4.14 Users, Roles, and Permissions
+3.4.14.1 Users, Roles, and Permissions are available only in the Super Admin portal. Admin RBAC routes redirect away from Admin. The RBAC shell provides tabs Users | Roles | Permissions and breadcrumb Home / RBAC / {page}.
 
-3.4.13.2 Users. Title Users. Description Assign roles to active employees and review access at a glance. Summary cards: Active employees; With roles; Needs role assignment. Search: Search name, username, email, ID…. Filters: role and All access | With roles | Needs assignment. Columns: Employee | Account | Assigned roles | Action (Assign / Manage). Empty: No employees found. Dialog Assign roles / Manage roles with role checkboxes, Cancel, and Save roles. Pagination: Prev / Next.
+3.4.14.2 Users. Title Users. Description Assign roles to active employees and review access at a glance. Summary cards: Active employees; With roles; Needs role assignment. Search: Search name, username, email, ID…. Filters: role and All access | With roles | Needs assignment. Columns: Employee | Account | Assigned roles | Action (Assign / Manage). Empty: No employees found. Dialog Assign roles / Manage roles with role checkboxes, Cancel, and Save roles. Pagination: Prev / Next.
 
 *[Screenshot placeholder]*
 Figure 45 – Super Admin Users list
 
 *[Screenshot placeholder]*
 Figure 46 – Assign / Manage roles dialog
-3.4.13.3 Roles. Title Roles. Description Manage system roles and the permissions granted to each role. Button New role. Columns: Role | Permissions | Users | Action. Protected roles show System role (super_admin, admin, record_management, user) and cannot be deleted. Create role dialog: Name (e.g. form_reviewer), Description, Create / Cancel. Manage dialog: Description, Filter permissions…, Save / Cancel. Delete custom roles with confirmation Delete role "…"?
+3.4.14.3 Roles. Title Roles. Description Manage system roles and the permissions granted to each role. Button New role. Columns: Role | Permissions | Users | Action. Protected roles show System role (super_admin, admin, record_management, user) and cannot be deleted. Create role dialog: Name (e.g. form_reviewer), Description, Create / Cancel. Manage dialog: Description, Filter permissions…, Save / Cancel. Delete custom roles with confirmation Delete role "…"?
 
 *[Screenshot placeholder]*
 Figure 47 – Roles list and Create / Manage role dialogs
-3.4.13.4 Permissions. Title Permissions. Description explains capabilities are assigned from the Roles page. Summary: Total permissions; Ticketing permissions; Categories. Search: Search permissions…. Tables: Permission | Key | Roles using. Empty: No permissions found with Clear search.
+3.4.14.4 Permissions. Title Permissions. Description explains capabilities are assigned from the Roles page. Summary: Total permissions; Ticketing permissions; Categories. Search: Search permissions…. Tables: Permission | Key | Roles using. Empty: No permissions found with Clear search.
 
 *[Screenshot placeholder]*
 Figure 48 – Permissions catalog
-3.4.14 Activity Logs
-3.4.14.1 Activity Logs (Records) and Activity Logs / Audit Logs (Super Admin) display the audit trail of significant actions. Records columns: When | Actor | Action | Summary. Super Admin shows system-wide events with actor, summary, and time. Empty: No activity yet.
+3.4.15 Activity Logs
+3.4.15.1 Activity Logs (Records) and Activity Logs / Audit Logs (Super Admin) display the audit trail of significant actions. Records columns: When | Actor | Action | Summary. Super Admin shows system-wide events with actor, summary, and time. Empty: No activity yet.
 
 *[Screenshot placeholder]*
 Figure 49 – Activity Logs / Audit Logs
-3.4.15 Settings
-3.4.15.1 Settings allows users to manage account details and password for the current portal. Title: Settings. Description: Manage your account details and password for this portal.
+3.4.16 Settings
+3.4.16.1 Settings allows users to manage account details and password for the current portal. Title: Settings. Description: Manage your account details and password for this portal.
 
 *[Screenshot placeholder]*
 Figure 50 – Settings — Account panel
-3.4.15.2 Account. Displays Email (disabled), Role (disabled: Super Admin / Admin / Records / Staff), Display name (Your name), Division / office (e.g. ICT), Designation (e.g. Museum Researcher). Click Save profile (Saving…). Toast: Profile updated. Validation: Name and division are required.
-3.4.15.4 Password. Enter Current password, New password, and Confirm. Click Change password (Updating…). Toast: Password changed. Validation: New password must be at least 6 characters; New password and confirmation do not match.
+3.4.16.2 Account. Displays Email (disabled), Role (disabled: Super Admin / Admin / Records / Staff), Display name (Your name), Division / office (e.g. ICT), Designation (e.g. Museum Researcher). Click Save profile (Saving…). Toast: Profile updated. Validation: Name and division are required.
+3.4.16.4 Password. Enter Current password, New password, and Confirm. Click Change password (Updating…). Toast: Password changed. Validation: New password must be at least 6 characters; New password and confirmation do not match.
 
 *[Screenshot placeholder]*
 Figure 51 – Settings — Password panel
@@ -482,8 +511,8 @@ Figure 53 – Super Admin System Notifications
 Important: Approving a request does not leave the ticket in an Approved status. The system sets Open.
 
 4.3 End-to-End Workflow Summary
-Phase 1 — Form publishing: Admin builds form in Form Builder (General → Fields → Print Template → Supporting Doc), clicks Submit to Records (or Send to Records / Resubmit from My Forms). Record Admin reviews Pending Forms and selects Approve & publish or Disapprove with remarks.
-Phase 2 — Staff request (general — using any published form): Staff (or Admin as requestor) submits via Submit Request (status pending approval). Admin Approves (status Open) or Rejects. Admin assigns personnel from the form creator’s division in Request Management (status In Progress). Assignee works under My Assignments. Requestor marks service complete (resolved), submits feedback, then Close ticket (closed) or Reopen request.
+Phase 1 — Form publishing: Admin builds form in Form Builder (General → Fields → Print Template → Client Request Approval → Workflow → Supporting Doc), clicks Submit to Records (or Send to Records / Resubmit from My Forms). Record Admin reviews Pending Forms and selects Approve & publish or Disapprove with remarks.
+Phase 2 — Staff request (general — using any published form): Staff (or Admin as requestor) submits via Submit Request (status pending approval). If configured, the request passes through For Review queues (Recommending Officer → Immediate Supervisor → Action Officer). Admin Approvals processes Action Officer steps when configured (status Open when ready). Admin assigns personnel from the form creator’s division in Request Management (status In Progress). Assignee works under Assigned to me. Requestor marks service complete (resolved), submits feedback, then Close ticket (closed) or Reopen request.
 
 5. Frequently Asked Questions
 5.1 Is the Support Ticketing System only for ICT / technical assistance? No. STS is a general system for museum staff. Admin offices may create and publish any request form that fits the Form Builder. All Staff with Client access may submit using the published forms available to them.
@@ -499,6 +528,9 @@ Phase 2 — Staff request (general — using any published form): Staff (or Admi
 5.11 What are the current system roles? Super Admin, Admin, Record Management, and Staff.
 5.12 What file types can I upload for form templates? PDF only (maximum 25 MB). Multi-page PDFs are supported.
 5.13 Why don’t answers line up on the form file? In Form Builder Print Template, place each marker on the fill/input box where the answer should appear, then Save layout. Viewers show answers at those exact mapped positions.
+5.14 What are the Form Builder steps? General, Fields, Print Template, Client Request Approval, Workflow, and Supporting Doc (six steps).
+5.15 Why does Staff land on Assigned to me instead of Dashboard? Staff users are redirected to Assigned to me after login so they see work assigned to them immediately.
+5.16 What are the For Review queues? Optional client-side approval steps configured in Form Builder — Recommending Officer, Immediate Supervisor, and Action Officer — before Admin assignment.
 
 List of Figures
 Figure 1 – Support Ticketing System log-in page
@@ -517,7 +549,9 @@ Figure 13 – Form Builder Step 1 — General information
 Figure 14 – Form Builder Step 2 — Fields, live preview, and field settings
 Figure 15 – Form Builder Step 3 — Print Template placement
 Figure 16 – Print preview dialog
-Figure 17 – Form Builder Step 4 — Supporting Doc and Submit to Records
+Figure 17 – Form Builder Step 4 — Client Request Approval
+Figure 18 – Form Builder Step 5 — Workflow (Action Officers)
+Figure 19 – Form Builder Step 6 — Supporting Doc and Submit to Records
 Figure 18 – My Forms Analytics overview
 Figure 19 – My Forms cards with status and actions
 Figure 20 – Pending Forms list
@@ -531,7 +565,9 @@ Figure 27 – Admin ticket detail — header, file, answers, request details
 Figure 28 – Approve or reject sidebar
 Figure 29 – Assign personnel sidebar filtered by form owner division
 Figure 30 – Update status and Waiting for client notices
-Figure 31 – My Assignments list
+Figure 31 – Assigned to me list
+Figure 32a – For Review — Recommending Officer queue
+Figure 32b – For Review — Action Officer queue
 Figure 32 – Submit Request page
 Figure 33 – Published form selection and View form file
 Figure 34 – PAMANA autofill requestor details
@@ -555,4 +591,4 @@ Figure 51 – Settings — Password panel
 Figure 52 – Notification bell dropdown
 Figure 53 – Super Admin System Notifications
 
-— End of Employee User Manual V2.2 —
+— End of Employee User Manual V2.3 —
