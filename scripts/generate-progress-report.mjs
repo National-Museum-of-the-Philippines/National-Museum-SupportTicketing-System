@@ -1,6 +1,6 @@
 /**
- * Progress report for the NMP Support Ticketing System, from 15 May 2026.
- * Section order matches the DVC project progress letter.
+ * NMP ICT progress memo for the Support Ticketing System.
+ * Layout follows the office progress-report letter. Content is STS only.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -9,10 +9,8 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
-  Footer,
-  Header,
+  LevelFormat,
   Packer,
-  PageNumber,
   Paragraph,
   ShadingType,
   Table,
@@ -29,71 +27,63 @@ const out = path.resolve(
   "../docs/NMP_Support_Ticketing_System_Progress_Report_23_September_2026.docx",
 );
 
-const NAVY = "1F3A5F";
-const RULE = "C5CDD6";
-const TEXT = "222222";
-const MUTED = "5C6770";
-const FONT = "Calibri";
+const FONT = "Times New Roman";
+const TEXT = "000000";
 const PAGE_W = 11906;
-const MARGIN = 720;
+const MARGIN = 864;
 const TABLE_W = PAGE_W - MARGIN * 2;
 
-const thin = { style: BorderStyle.SINGLE, size: 4, color: RULE };
-const borders = { top: thin, bottom: thin, left: thin, right: thin };
+const line = { style: BorderStyle.SINGLE, size: 4, color: "000000" };
+const box = { top: line, bottom: line, left: line, right: line };
+const none = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+const open = { top: none, bottom: none, left: none, right: none };
+
 function run(text, opts = {}) {
   return new TextRun({
     text,
     font: FONT,
-    size: opts.size ?? 22,
+    size: opts.size ?? 24,
     bold: opts.bold ?? false,
     italics: opts.italics ?? false,
-    color: opts.color ?? TEXT,
+    color: TEXT,
   });
 }
 
-function p(text, opts = {}) {
+function para(children, opts = {}) {
   return new Paragraph({
     spacing: { before: opts.before ?? 0, after: opts.after ?? 160, line: 276 },
     alignment: opts.align,
-    children: [run(text, opts)],
+    children,
   });
 }
 
-function lines(items, opts = {}) {
-  return items.map(
-    (text, i) =>
-      new Paragraph({
-        spacing: { before: i === 0 ? (opts.before ?? 0) : 0, after: 0, line: 240 },
-        children: [run(text, opts)],
-      }),
-  );
+function textPara(text, opts = {}) {
+  return para([run(text, opts)], opts);
+}
+
+function heading(text) {
+  return textPara(text, { bold: true, before: 240, after: 120, size: 24 });
 }
 
 function cell(text, width, opts = {}) {
   const header = opts.header ?? false;
   return new TableCell({
     width: { size: width, type: WidthType.DXA },
-    borders,
-    shading: header ? { type: ShadingType.CLEAR, fill: NAVY } : undefined,
-    margins: { top: 50, bottom: 50, left: 60, right: 60 },
+    borders: opts.borders ?? box,
+    shading: header ? { type: ShadingType.CLEAR, fill: "D9D9D9" } : undefined,
+    margins: { top: 60, bottom: 60, left: 80, right: 80 },
     verticalAlign: VerticalAlign.CENTER,
     children: [
       new Paragraph({
         alignment: opts.align ?? AlignmentType.LEFT,
         spacing: { before: 0, after: 0 },
-        children: [
-          run(text, {
-            size: header ? 15 : 16,
-            bold: header || opts.bold,
-            color: header ? "FFFFFF" : TEXT,
-          }),
-        ],
+        children: [run(text, { size: opts.size ?? 20, bold: header || opts.bold })],
       }),
     ],
   });
 }
 
-function table(widths, header, rows) {
+function grid(widths, header, rows) {
   return new Table({
     width: { size: TABLE_W, type: WidthType.DXA },
     columnWidths: widths,
@@ -101,366 +91,197 @@ function table(widths, header, rows) {
       new TableRow({
         tableHeader: true,
         cantSplit: true,
-        children: header.map((label, i) => cell(label, widths[i], { header: true })),
+        children: header.map((label, i) => cell(label, widths[i], { header: true, align: AlignmentType.CENTER })),
       }),
       ...rows.map(
         (row) =>
           new TableRow({
             cantSplit: true,
-            children: row.map((value, i) => cell(String(value), widths[i])),
+            children: row.map((value, i) =>
+              cell(value, widths[i], { align: i === 0 ? AlignmentType.CENTER : AlignmentType.LEFT }),
+            ),
           }),
       ),
     ],
   });
 }
 
-function sectionTitle(text) {
-  return new Paragraph({
-    spacing: { before: 280, after: 120 },
-    border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: NAVY, space: 1 } },
-    children: [run(text, { bold: true, size: 24, color: NAVY })],
+function memoLine(label, lines) {
+  const labelW = 1400;
+  const valueW = TABLE_W - labelW;
+  return new Table({
+    width: { size: TABLE_W, type: WidthType.DXA },
+    columnWidths: [labelW, 280, valueW - 280],
+    rows: [
+      new TableRow({
+        cantSplit: true,
+        children: [
+          new TableCell({
+            width: { size: labelW, type: WidthType.DXA },
+            borders: open,
+            margins: { top: 40, bottom: 40, left: 0, right: 80 },
+            children: [
+              new Paragraph({
+                spacing: { before: 0, after: 0 },
+                children: [run(label, { bold: true })],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: 280, type: WidthType.DXA },
+            borders: open,
+            margins: { top: 40, bottom: 40, left: 0, right: 80 },
+            children: [
+              new Paragraph({
+                spacing: { before: 0, after: 0 },
+                children: [run(":")],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: valueW - 280, type: WidthType.DXA },
+            borders: open,
+            margins: { top: 40, bottom: 40, left: 0, right: 0 },
+            children: lines.map(
+              (lineText, index) =>
+                new Paragraph({
+                  spacing: { before: 0, after: 0 },
+                  children: [run(lineText, { bold: index === 0 })],
+                }),
+            ),
+          }),
+        ],
+      }),
+    ],
   });
 }
 
-const header = new Header({
-  children: [
-    new Paragraph({
-      spacing: { after: 20 },
-      children: [run("DA VINCI COLORS", { bold: true, size: 28, color: NAVY })],
-    }),
-    new Paragraph({
-      spacing: { after: 0 },
-      children: [
-        run("www.davincicolors.ph   ·   dvcinfo@davincicolors.ph   ·   +632 8921 7715", {
-          size: 15,
-          color: MUTED,
-        }),
-      ],
-    }),
-    new Paragraph({
-      border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: NAVY, space: 4 } },
-      spacing: { after: 80 },
-      children: [
-        run("Ground Floor, Esna Building, 30 Timog Avenue, Quezon City", {
-          size: 15,
-          color: MUTED,
-        }),
-      ],
-    }),
-  ],
-});
+const milestoneW = [2800, TABLE_W - 2800 - 2200, 2200];
+const upcomingW = [700, 2800, 2200, 1800, TABLE_W - 700 - 2800 - 2200 - 1800];
 
-const footer = new Footer({
-  children: [
-    new Paragraph({
-      border: { top: { style: BorderStyle.SINGLE, size: 6, color: RULE, space: 8 } },
-      spacing: { before: 80 },
-      alignment: AlignmentType.RIGHT,
-      children: [
-        run("NMP Support Ticketing System  ·  Progress Report  ·  Page ", { size: 16, color: MUTED }),
-        new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 16, color: MUTED }),
-        run(" of ", { size: 16, color: MUTED }),
-        new TextRun({ children: [PageNumber.TOTAL_PAGES], font: FONT, size: 16, color: MUTED }),
-      ],
-    }),
-  ],
-});
+const milestones = [
+  ["May 15, 2026", "Start of system development (Technical Assistance Request System)", "Completed"],
+  ["June 11, 2026", "Development of the Admin, Records, and Client portals", "Completed"],
+  ["June 23, 2026", "Completion of the core request workflow (forms, approval, assignment, and feedback)", "Completed"],
+  ["July 2, 2026", "Real-time messaging", "Completed"],
+  ["July 28, 2026", "Dashboards and Settings", "Completed"],
+  ["August 26, 2026", "Migration to Laravel and MySQL", "Completed"],
+  ["September 2026", "Crafting of the Employee User Manual", "Completed"],
+  ["September 10, 2026", "Official system deployment", "Completed"],
+];
 
-const statusW = [700, 3400, 1900, 1100, 1866, 1500];
-const timelineW = [2200, 900, 700, 2100, 2100, 2466];
-const upcomingW = [620, 2400, 1100, 780, 2000, 1566, 2000];
-const pendingW = [620, 4300, 1200, 1800, 2546];
+const upcoming = [
+  ["1", "Pilot testing", "ICT Section", "Pending", "September 25, 2026"],
+  ["2", "Pilot testing", "Records and Admin users", "Pending", "October 3, 2026"],
+  ["3", "System launching", "ICT Section", "Pending", "October 2026"],
+  ["4", "", "", "", ""],
+  ["5", "", "", "", ""],
+  ["6", "", "", "", ""],
+  ["7", "", "", "", ""],
+  ["8", "", "", "", ""],
+];
+
+const bullets = [
+  "Form building in six steps, including print placement and an optional supporting document",
+  "Records review to approve and publish a form, or disapprove it with remarks",
+  "Request submission on any published form, with requestor details filled from PAMANA",
+  "For Review by Recommending Officer, Immediate Supervisor, and Action Officer when a form requires it",
+  "Admin approval, assignment of personnel, and tracking under Assigned to me",
+  "Service feedback, closing, and reopening of a request",
+  "Messaging, reports, activity logs, and role-based access for Super Admin, Admin, Records, and Staff",
+];
 
 const doc = new Document({
+  numbering: {
+    config: [
+      {
+        reference: "sts-functions",
+        levels: [
+          {
+            level: 0,
+            format: LevelFormat.BULLET,
+            text: "•",
+            alignment: AlignmentType.LEFT,
+            style: {
+              paragraph: { indent: { left: 720, hanging: 360 } },
+            },
+          },
+        ],
+      },
+    ],
+  },
   sections: [
     {
       properties: {
         page: {
           size: { width: PAGE_W, height: 16838 },
-          margin: { top: 900, bottom: 800, left: MARGIN, right: MARGIN, header: 360, footer: 360 },
+          margin: { top: 864, bottom: 864, left: MARGIN, right: MARGIN },
         },
       },
-      headers: { default: header },
-      footers: { default: footer },
       children: [
-        new Paragraph({
-          alignment: AlignmentType.RIGHT,
-          spacing: { after: 200 },
-          children: [run("23 September 2026", { size: 22 })],
+        textPara("OFFICE OF THE DIRECTOR-GENERAL", {
+          bold: true,
+          align: AlignmentType.CENTER,
+          after: 0,
+        }),
+        textPara("Information and Communication Technology Section", {
+          bold: true,
+          align: AlignmentType.CENTER,
+          after: 280,
         }),
 
-        ...lines(
-          [
-            "Angelo Macario",
-            "Project Manager / Single Point of Contact",
-            "National Museum of the Philippines (NMP)",
-            "P. Burgos Drive, Rizal Park, Manila",
-          ],
-          { size: 22 },
+        memoLine("TO", [
+          "ATTY. MA. ROSENNE M. FLORES-AVILA",
+          "Deputy Director-General for Administration",
+        ]),
+        memoLine("THRU", ["MELINDA ETRATA", "Administrative Officer V, RMS-GASD"]),
+        memoLine("FROM", ["RESTY D. MORANCIL", "Information Technology Officer I, ODG-ICT"]),
+        memoLine("DATE", ["23 September 2026"]),
+        memoLine("SUBJECT", ["Project Progress Report – Support Ticketing System"]),
+
+        textPara("Dear Ms. Etrata,", { before: 280, after: 160 }),
+        textPara(
+          "This letter serves as the official progress report for the Support Ticketing System (STS) project as of September 23, 2026.",
+        ),
+        textPara(
+          "We are pleased to submit the official progress report for the Support Ticketing System (STS) project. Significant milestones have been achieved, including the successful completion of the core modules and the official deployment of the system on September 10, 2026.",
         ),
 
-        p("Thru:", { before: 200, after: 40, bold: true }),
-        ...lines(
-          ["Resty Morancil", "IT Officer", "National Museum of the Philippines (NMP)"],
-          { size: 22 },
+        heading("Project Milestones & Timeline"),
+        grid(milestoneW, ["DATE", "ACTIVITY", "STATUS"], milestones),
+
+        heading("Completed System Modules & Features"),
+        textPara(
+          "Core System Modules: Super Admin, Admin, Records, and Staff portals; Form Builder; My Forms; Pending Forms; Published Forms; Approvals; Request Management; Assigned to me; For Review; Submit Request; My Requests; Service Feedback; Messages; Reports and Analytics; Users, Roles, and Permissions; Activity Logs; and Settings.",
+        ),
+        textPara(
+          "Additional Features: PAMANA employee autofill, print-template field placement, client approval for Recommending Officer, Immediate Supervisor, and Action Officer, role-based access, and the Employee User Manual (Version 2.3).",
+        ),
+        textPara("Key Functionalities Covered:", { after: 80 }),
+        ...bullets.map(
+          (item) =>
+            new Paragraph({
+              numbering: { reference: "sts-functions", level: 0 },
+              spacing: { before: 40, after: 40, line: 276 },
+              children: [run(item, { size: 24 })],
+            }),
         ),
 
-        new Paragraph({
-          spacing: { before: 220, after: 200 },
-          children: [
-            run("Subject:  ", { bold: true, size: 22 }),
-            run("Project Progress Report – NMP Support Ticketing System", { bold: true, size: 22 }),
-          ],
-        }),
-
-        p("Dear Mr. Macario,", { after: 160 }),
-
-        p(
-          "This letter serves as the official progress report for the National Museum of the Philippines (NMP) Support Ticketing System as of 23 September 2026.",
-        ),
-        p(
-          "Development began on 15 May 2026 with the initial Technical Assistance Request System. That work is now delivered as the Support Ticketing System. We are pleased to report that development from 15 May 2026 through 22 September 2026 is complete, covering the Super Admin, Admin, Records, and Staff portals, the full request workflow, PAMANA employee autofill, and the Employee User Manual (Version 2.3).",
+        heading("Current Status"),
+        textPara(
+          "System Deployment: The Support Ticketing System was successfully deployed on September 10, 2026, and is now accessible at http://on-prem.x-dcb.net:5173.",
         ),
 
-        sectionTitle("Project Status Summary"),
-        p("The following milestones have been completed:", { after: 120 }),
-        table(
-          statusW,
-          ["Item No.", "Activities", "Action needed", "Responsible", "Date Completed", "Status"],
-          [
-            [
-              "1",
-              "Project start: Technical Assistance Request System",
-              "None",
-              "DVC",
-              "15 May 2026",
-              "Completed",
-            ],
-            [
-              "2",
-              "Admin, Records, and Client portals, and the core request workflow",
-              "None",
-              "DVC",
-              "30 June 2026",
-              "Completed",
-            ],
-            [
-              "3",
-              "Real-time messaging, dashboards, and Settings",
-              "None",
-              "DVC",
-              "28 July 2026",
-              "Completed",
-            ],
-            [
-              "4",
-              "Migration to Laravel and MySQL",
-              "None",
-              "DVC",
-              "26 August 2026",
-              "Completed",
-            ],
-            [
-              "5",
-              "PAMANA autofill, Super Admin portal, and role-based access",
-              "None",
-              "DVC",
-              "3 September 2026",
-              "Completed",
-            ],
-            [
-              "6",
-              "Client review queues, Assigned to me, and section personnel lists",
-              "None",
-              "DVC",
-              "18 September 2026",
-              "Completed",
-            ],
-            [
-              "7",
-              "Employee User Manual, Version 2.3",
-              "For NMP use during UAT and training",
-              "DVC",
-              "22 September 2026",
-              "Completed",
-            ],
-          ],
-        ),
-
-        sectionTitle("Phase Completion and Billing"),
-        p(
-          "With the completion of the work above, the development phase that started on 15 May 2026 is now formally closed. On 22 September 2026 the working environment was cleared of sample forms, tickets, messages, and activity logs so Client, Admin, and Records can start clean. User accounts and role assignments were kept.",
-        ),
-        p(
-          "The system is ready for User Acceptance Testing. Billing for the completed development phase will be issued to the National Museum of the Philippines upon written acceptance of the delivered system.",
-        ),
-
-        sectionTitle("Project Timeline (Baseline vs Actual Adjustment)"),
-        p(
-          "Original Period is the window in which each activity was carried out. Revised Period is the same window where the work finished as carried out. User Acceptance Testing, training, and go-live remain proposed until NMP confirms the schedule.",
-          { after: 120 },
-        ),
-        table(
-          timelineW,
-          ["Activity", "Responsible", "No. of Days", "Original Period", "Revised Period", "Status / Remarks"],
-          [
-            [
-              "Project start and initial Technical Assistance Request System",
-              "DVC",
-              "28",
-              "15 May – 11 June 2026",
-              "15 May – 11 June 2026",
-              "Completed",
-            ],
-            [
-              "Portals and core request workflow (forms, approvals, assignment, feedback)",
-              "DVC",
-              "20",
-              "11–30 June 2026",
-              "11–30 June 2026",
-              "Completed",
-            ],
-            [
-              "Messaging, dashboards, and Settings",
-              "DVC",
-              "27",
-              "2–28 July 2026",
-              "2–28 July 2026",
-              "Completed",
-            ],
-            [
-              "Migration to Laravel and MySQL",
-              "DVC",
-              "20",
-              "7–26 August 2026",
-              "7–26 August 2026",
-              "Completed",
-            ],
-            [
-              "PAMANA, Super Admin, review queues, and Employee User Manual v2.3",
-              "DVC",
-              "22",
-              "1–22 September 2026",
-              "1–22 September 2026",
-              "Completed",
-            ],
-            [
-              "User Acceptance Testing",
-              "NMP",
-              "5",
-              "24–30 September 2026",
-              "24–30 September 2026",
-              "Not Started",
-            ],
-            [
-              "End-user training",
-              "DVC",
-              "3",
-              "1–3 October 2026",
-              "1–3 October 2026",
-              "Not Started",
-            ],
-            [
-              "Official go-live",
-              "DVC / NMP",
-              "1",
-              "6 October 2026",
-              "6 October 2026",
-              "Not Started",
-            ],
-          ],
-        ),
-
-        sectionTitle("Ongoing and Upcoming Activities"),
-        table(
+        heading("Upcoming Activities"),
+        grid(
           upcomingW,
-          [
-            "Item No.",
-            "Activity",
-            "Responsible",
-            "No. of Days",
-            "Period",
-            "Status",
-            "Target Completion Date",
-          ],
-          [
-            [
-              "1",
-              "User Acceptance Testing of Super Admin, Admin, Records, and Staff",
-              "NMP",
-              "5",
-              "24–30 September 2026",
-              "Not Started",
-              "30 September 2026",
-            ],
-            [
-              "2",
-              "End-user training using the Employee User Manual v2.3",
-              "DVC",
-              "3",
-              "1–3 October 2026",
-              "Not Started",
-              "3 October 2026",
-            ],
-            [
-              "3",
-              "Official go-live",
-              "DVC / NMP",
-              "1",
-              "6 October 2026",
-              "Not Started",
-              "6 October 2026",
-            ],
-          ],
+          ["#", "Activity", "Responsible unit", "Status", "Target Completion Date"],
+          upcoming,
         ),
 
-        sectionTitle("Development Progress Details"),
-        p(
-          "As of 23 September 2026, development stands complete. The project opened on 15 May 2026 as the Technical Assistance Request System. In June the application was rebuilt as a full system with Admin, Records, and Client portals, including form building, approvals, assignment, printable forms, and client feedback. In July, real-time messaging and the shared dashboard and Settings layout were added.",
-        ),
-        p(
-          "In August the system was moved to Laravel and MySQL. In September, requestor details were connected to PAMANA, the Super Admin portal and role-based access were added, and the client review path was completed for Recommending Officer, Immediate Supervisor, and Action Officer, together with Assigned to me. The Employee User Manual, Version 2.3, was issued on 22 September 2026.",
-        ),
-        p(
-          "Admin builds a form and sends it to Records. Records approves and publishes the form, or disapproves it with remarks. Staff submit a request on any published form. Where the form requires it, the request passes through For Review, then Admin approval and assignment. The requestor confirms the service, submits feedback, and closes the ticket. The delivered system is ready for User Acceptance Testing.",
-        ),
-
-        sectionTitle("Requested Documents and Pending Deliverables"),
-        p(
-          "The following items are requested from NMP so User Acceptance Testing can start on 24 September 2026 and the 6 October 2026 go-live date can be kept.",
-          { after: 120 },
-        ),
-        table(
-          pendingW,
-          ["Item No.", "Requested Document", "Responsible", "Date Requested", "Status"],
-          [
-            [
-              "1",
-              "UAT schedule and named testers for Super Admin, Admin, Record Admin, and Staff",
-              "NMP",
-              "23 September 2026",
-              "Pending",
-            ],
-            [
-              "2",
-              "Written acceptance of the delivered system, or a list of UAT findings",
-              "NMP",
-              "23 September 2026",
-              "Pending",
-            ],
-            [
-              "3",
-              "Confirmed go-live date",
-              "NMP",
-              "23 September 2026",
-              "Pending",
-            ],
-          ],
-        ),
-
-        p("Sincerely,", { before: 360, after: 280 }),
-        p("John Paul Dl. Sarno", { before: 0, after: 0, bold: true }),
-        p("Project Manager", { before: 0, after: 0, color: MUTED }),
+        textPara("Sincerely,", { before: 400, after: 360 }),
+        textPara("RESTY D. MORANCIL", { bold: true, before: 0, after: 0 }),
+        textPara("Information Technology Officer I", { before: 0, after: 0 }),
       ],
     },
   ],
