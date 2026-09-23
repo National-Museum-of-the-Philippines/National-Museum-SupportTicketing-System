@@ -1,6 +1,6 @@
 /**
- * Progress report for the NMP Support Ticketing System.
- * Follows the section flow of the DVC project progress letter.
+ * Progress report for the NMP Support Ticketing System, from 15 May 2026.
+ * Section order matches the DVC project progress letter.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -166,9 +166,9 @@ const footer = new Footer({
   ],
 });
 
-const statusW = [700, 3100, 2100, 1100, 1866, 1600];
-const timelineW = [2500, 1100, 800, 1900, 1966, 2200];
-const upcomingW = [620, 2500, 1100, 780, 1900, 1766, 1800];
+const statusW = [700, 3400, 1900, 1100, 1866, 1500];
+const timelineW = [2200, 900, 700, 2100, 2100, 2466];
+const upcomingW = [620, 2400, 1100, 780, 2000, 1566, 2000];
 const pendingW = [620, 4300, 1200, 1800, 2546];
 
 const doc = new Document({
@@ -216,54 +216,70 @@ const doc = new Document({
         p("Dear Mr. Macario,", { after: 160 }),
 
         p(
-          "This letter is the official progress report for the National Museum of the Philippines (NMP) Support Ticketing System (STS) as of 23 September 2026.",
+          "This letter serves as the official progress report for the National Museum of the Philippines (NMP) Support Ticketing System as of 23 September 2026.",
         ),
         p(
-          "System development is complete. The application now covers the Super Admin, Admin, Records, and Staff portals. Form building and publishing, request submission, client review, approval and assignment, service feedback, role-based access, messaging, reports, and the Employee User Manual (Version 2.3) are in place. The system is ready for User Acceptance Testing.",
+          "Development began on 15 May 2026 with the initial Technical Assistance Request System. That work is now delivered as the Support Ticketing System. We are pleased to report that development from 15 May 2026 through 22 September 2026 is complete, covering the Super Admin, Admin, Records, and Staff portals, the full request workflow, PAMANA employee autofill, and the Employee User Manual (Version 2.3).",
         ),
 
         sectionTitle("Project Status Summary"),
-        p("The following development items are completed:", { after: 120 }),
+        p("The following milestones have been completed:", { after: 120 }),
         table(
           statusW,
           ["Item No.", "Activities", "Action needed", "Responsible", "Date Completed", "Status"],
           [
             [
               "1",
-              "Form Builder (six steps, print placement, supporting document) and form lifecycle",
-              "None. Delivered for UAT.",
+              "Project start: Technical Assistance Request System",
+              "None",
               "DVC",
-              "22 September 2026",
+              "15 May 2026",
               "Completed",
             ],
             [
               "2",
-              "Records review and publishing (Pending Forms, Published Forms, recommendation)",
-              "None. Delivered for UAT.",
+              "Admin, Records, and Client portals, and the core request workflow",
+              "None",
               "DVC",
-              "22 September 2026",
+              "30 June 2026",
               "Completed",
             ],
             [
               "3",
-              "Staff request workflow (submit, For Review, approvals, assignment, feedback, close)",
-              "None. Delivered for UAT.",
+              "Real-time messaging, dashboards, and Settings",
+              "None",
               "DVC",
-              "22 September 2026",
+              "28 July 2026",
               "Completed",
             ],
             [
               "4",
-              "PAMANA employee autofill, users, roles, and permissions",
-              "None. Delivered for UAT.",
+              "Migration to Laravel and MySQL",
+              "None",
               "DVC",
-              "22 September 2026",
+              "26 August 2026",
               "Completed",
             ],
             [
               "5",
+              "PAMANA autofill, Super Admin portal, and role-based access",
+              "None",
+              "DVC",
+              "3 September 2026",
+              "Completed",
+            ],
+            [
+              "6",
+              "Client review queues, Assigned to me, and section personnel lists",
+              "None",
+              "DVC",
+              "18 September 2026",
+              "Completed",
+            ],
+            [
+              "7",
               "Employee User Manual, Version 2.3",
-              "For NMP use during UAT and training.",
+              "For NMP use during UAT and training",
               "DVC",
               "22 September 2026",
               "Completed",
@@ -271,37 +287,61 @@ const doc = new Document({
           ],
         ),
 
-        sectionTitle("Phase Completion"),
+        sectionTitle("Phase Completion and Billing"),
         p(
-          "With these items delivered, the development phase is closed. The working environment was cleared of sample forms, tickets, messages, and activity logs on 22 September 2026 so Client, Admin, and Records start clean. User accounts and role assignments were kept.",
+          "With the completion of the work above, the development phase that started on 15 May 2026 is now formally closed. On 22 September 2026 the working environment was cleared of sample forms, tickets, messages, and activity logs so Client, Admin, and Records can start clean. User accounts and role assignments were kept.",
         ),
         p(
-          "No invoice is reported in this letter. Billing for the completed development phase will follow the approved project terms after NMP accepts the delivered system in writing.",
+          "The system is ready for User Acceptance Testing. Billing for the completed development phase will be issued to the National Museum of the Philippines upon written acceptance of the delivered system.",
         ),
 
-        sectionTitle("Project Timeline"),
+        sectionTitle("Project Timeline (Baseline vs Actual Adjustment)"),
         p(
-          "Dates below are the working schedule. User Acceptance Testing, training, and go-live move only after NMP confirms the testers and the start date.",
+          "Original Period is the window in which each activity was carried out. Revised Period is the same window where the work finished as carried out. User Acceptance Testing, training, and go-live remain proposed until NMP confirms the schedule.",
           { after: 120 },
         ),
         table(
           timelineW,
-          ["Activity", "Responsible", "No. of Days", "Period", "Target", "Status / Remarks"],
+          ["Activity", "Responsible", "No. of Days", "Original Period", "Revised Period", "Status / Remarks"],
           [
             [
-              "System development and Employee User Manual v2.3",
+              "Project start and initial Technical Assistance Request System",
               "DVC",
-              "—",
-              "Completed",
-              "22 September 2026",
+              "28",
+              "15 May – 11 June 2026",
+              "15 May – 11 June 2026",
               "Completed",
             ],
             [
-              "Final verification (records review and document viewing)",
+              "Portals and core request workflow (forms, approvals, assignment, feedback)",
               "DVC",
-              "1",
-              "23 September 2026",
-              "23 September 2026",
+              "20",
+              "11–30 June 2026",
+              "11–30 June 2026",
+              "Completed",
+            ],
+            [
+              "Messaging, dashboards, and Settings",
+              "DVC",
+              "27",
+              "2–28 July 2026",
+              "2–28 July 2026",
+              "Completed",
+            ],
+            [
+              "Migration to Laravel and MySQL",
+              "DVC",
+              "20",
+              "7–26 August 2026",
+              "7–26 August 2026",
+              "Completed",
+            ],
+            [
+              "PAMANA, Super Admin, review queues, and Employee User Manual v2.3",
+              "DVC",
+              "22",
+              "1–22 September 2026",
+              "1–22 September 2026",
               "Completed",
             ],
             [
@@ -309,16 +349,16 @@ const doc = new Document({
               "NMP",
               "5",
               "24–30 September 2026",
-              "30 September 2026",
-              "Not started. Pending NMP confirmation.",
+              "24–30 September 2026",
+              "Not Started",
             ],
             [
-              "End-user training (Super Admin, Admin, Record Admin, Staff)",
+              "End-user training",
               "DVC",
               "3",
               "1–3 October 2026",
-              "3 October 2026",
-              "Not started. Follows UAT.",
+              "1–3 October 2026",
+              "Not Started",
             ],
             [
               "Official go-live",
@@ -326,7 +366,7 @@ const doc = new Document({
               "1",
               "6 October 2026",
               "6 October 2026",
-              "Not started. Follows training and acceptance.",
+              "Not Started",
             ],
           ],
         ),
@@ -334,15 +374,23 @@ const doc = new Document({
         sectionTitle("Ongoing and Upcoming Activities"),
         table(
           upcomingW,
-          ["Item No.", "Activity", "Responsible", "No. of Days", "Period", "Status", "Target"],
+          [
+            "Item No.",
+            "Activity",
+            "Responsible",
+            "No. of Days",
+            "Period",
+            "Status",
+            "Target Completion Date",
+          ],
           [
             [
               "1",
-              "User Acceptance Testing of all four portals",
+              "User Acceptance Testing of Super Admin, Admin, Records, and Staff",
               "NMP",
               "5",
               "24–30 September 2026",
-              "Not started",
+              "Not Started",
               "30 September 2026",
             ],
             [
@@ -351,40 +399,40 @@ const doc = new Document({
               "DVC",
               "3",
               "1–3 October 2026",
-              "Not started",
+              "Not Started",
               "3 October 2026",
             ],
             [
               "3",
-              "Acceptance of UAT findings, if any, and official go-live",
+              "Official go-live",
               "DVC / NMP",
               "1",
               "6 October 2026",
-              "Not started",
+              "Not Started",
               "6 October 2026",
             ],
           ],
         ),
 
-        sectionTitle("Development Progress"),
+        sectionTitle("Development Progress Details"),
         p(
-          "As of 23 September 2026, development of the Support Ticketing System is complete and available for acceptance testing. The delivered scope is as follows.",
+          "As of 23 September 2026, development stands complete. The project opened on 15 May 2026 as the Technical Assistance Request System. In June the application was rebuilt as a full system with Admin, Records, and Client portals, including form building, approvals, assignment, printable forms, and client feedback. In July, real-time messaging and the shared dashboard and Settings layout were added.",
         ),
         p(
-          "Super Admin manages users, roles, and permissions, and can open the Admin, Records, and Staff portals from one account. Admin builds any request form that fits the Form Builder, submits it to Records, approves requests, and assigns personnel. Records reviews pending forms and either approves and publishes them or disapproves them with remarks. Staff submit requests on published forms, take part in For Review when a form requires a Recommending Officer, Immediate Supervisor, or Action Officer, and close the request after service feedback.",
+          "In August the system was moved to Laravel and MySQL. In September, requestor details were connected to PAMANA, the Super Admin portal and role-based access were added, and the client review path was completed for Recommending Officer, Immediate Supervisor, and Action Officer, together with Assigned to me. The Employee User Manual, Version 2.3, was issued on 22 September 2026.",
         ),
         p(
-          "Requestor name, division, and related profile details fill in from PAMANA. The Employee User Manual, Version 2.3, dated 22 September 2026, is the reference for UAT and training. It covers sign-in, Form Builder, My Forms, Pending Forms, Published Forms, Approvals, Request Management, Assigned to me, For Review, Submit Request, My Requests, Service Feedback, Messages, Reports, and Settings.",
+          "Admin builds a form and sends it to Records. Records approves and publishes the form, or disapproves it with remarks. Staff submit a request on any published form. Where the form requires it, the request passes through For Review, then Admin approval and assignment. The requestor confirms the service, submits feedback, and closes the ticket. The delivered system is ready for User Acceptance Testing.",
         ),
 
-        sectionTitle("Requested from NMP"),
+        sectionTitle("Requested Documents and Pending Deliverables"),
         p(
-          "The items below are needed so User Acceptance Testing can start on 24 September 2026 and the 6 October 2026 go-live date can hold.",
+          "The following items are requested from NMP so User Acceptance Testing can start on 24 September 2026 and the 6 October 2026 go-live date can be kept.",
           { after: 120 },
         ),
         table(
           pendingW,
-          ["Item No.", "Requested item", "Responsible", "Date requested", "Status"],
+          ["Item No.", "Requested Document", "Responsible", "Date Requested", "Status"],
           [
             [
               "1",
