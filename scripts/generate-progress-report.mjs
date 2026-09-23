@@ -165,9 +165,9 @@ const milestones = [
   ["June 23, 2026", "Completion of the core request workflow (forms, approval, assignment, and feedback)", "Completed"],
   ["July 2, 2026", "Real-time messaging", "Completed"],
   ["July 28, 2026", "Dashboards and Settings", "Completed"],
-  ["August 26, 2026", "Migration to Laravel and MySQL", "Completed"],
-  ["September 2026", "Crafting of the Employee User Manual", "Completed"],
-  ["September 10, 2026", "Official system deployment", "Completed"],
+  ["August 26, 2026", "Migration to Laravel and MySQL, keeping messaging, PDF generation, and requester details working", "Completed"],
+  ["September 10, 2026", "Super Admin portal, PAMANA requestor autofill, and assignment limited to the form owner's division", "Completed"],
+  ["September 15, 2026", "Official system deployment on-premises", "Completed"],
 ];
 
 const upcoming = [
@@ -244,7 +244,7 @@ const doc = new Document({
           "This letter serves as the official progress report for the Support Ticketing System (STS) project as of September 23, 2026.",
         ),
         textPara(
-          "We are pleased to submit the official progress report for the Support Ticketing System (STS) project. Significant milestones have been achieved, including the successful completion of the core modules and the official deployment of the system on September 10, 2026.",
+          "We are pleased to submit the official progress report for the Support Ticketing System (STS) project. Significant milestones have been achieved, including the successful completion of the core modules and the official deployment of the system on-premises on September 15, 2026.",
         ),
 
         heading("Project Milestones & Timeline"),
@@ -255,7 +255,7 @@ const doc = new Document({
           "Core System Modules: Super Admin, Admin, Records, and Staff portals; Form Builder; My Forms; Pending Forms; Published Forms; Approvals; Request Management; Assigned to me; For Review; Submit Request; My Requests; Service Feedback; Messages; Reports and Analytics; Users, Roles, and Permissions; Activity Logs; and Settings.",
         ),
         textPara(
-          "Additional Features: PAMANA employee autofill, print-template field placement, client approval for Recommending Officer, Immediate Supervisor, and Action Officer, role-based access, and the Employee User Manual (Version 2.3).",
+          "Additional Features: PAMANA employee autofill, print-template field placement, client approval for Recommending Officer, Immediate Supervisor, and Action Officer, and role-based access.",
         ),
         textPara("Key Functionalities Covered:", { after: 80 }),
         ...bullets.map(
@@ -269,7 +269,7 @@ const doc = new Document({
 
         heading("Current Status"),
         textPara(
-          "System Deployment: The Support Ticketing System was successfully deployed on September 10, 2026, and is now accessible at http://on-prem.x-dcb.net:5173.",
+          "System Deployment: The Support Ticketing System was successfully deployed on-premises on September 15, 2026, and is now accessible at http://on-prem.x-dcb.net:5173.",
         ),
 
         heading("Upcoming Activities"),
