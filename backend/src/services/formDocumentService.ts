@@ -1,7 +1,6 @@
 import fs from "node:fs";
-import path from "node:path";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { config } from "../config.js";
+import { materializeUpload } from "../utils/materializeUpload.js";
 import { Form } from "../models/Form.js";
 import { AppError } from "../utils/errors.js";
 import { embedTemplateWithPlacements, type Placement } from "./templateEmbedService.js";
@@ -14,11 +13,6 @@ type FormField = {
   label: string;
   options?: string[];
 };
-
-function resolveUploadPath(urlPath: string) {
-  const filename = path.basename(urlPath);
-  return path.join(config.uploadDir, filename);
-}
 
 function buildLayoutPreviewValues(fields: FormField[], placements: Placement[]) {
   const fieldByVar = new Map(fields.map((field) => [field.variable, field]));
@@ -120,17 +114,17 @@ export async function generateFormPreviewPdf(formId: string) {
 
   const templateUrl = form.printTemplateImagePath;
   if (templateUrl) {
-    const templatePath = resolveUploadPath(templateUrl);
-    await embedTemplateWithPlacements(
-      pdfDoc,
-      templatePath,
-      placements,
-      values,
-      form.printPlacementFontSize ??
-        parsePlacementsFromTemplate(form.printTemplate).fontSize ??
-        10,
-      { emptyFallbackToLabel: true },
-    );
+    const templatePath = await materializeUpload(templateUrl);
+    if (templatePath) {
+      await embedTemplateWithPlacements(
+        pdfDoc,
+        templatePath,
+        placements,
+        values,
+        16,
+        { emptyFallbackToLabel: true },
+      );
+    }
   }
 
   if (pdfDoc.getPageCount() === 0) {
@@ -155,8 +149,8 @@ export async function generateFormPreviewPdf(formId: string) {
   }
 
   if (form.workProcedurePath && /\.pdf$/i.test(form.workProcedurePath)) {
-    const procedurePath = resolveUploadPath(form.workProcedurePath);
-    if (fs.existsSync(procedurePath)) {
+    const procedurePath = await materializeUpload(form.workProcedurePath);
+    if (procedurePath && fs.existsSync(procedurePath)) {
       await appendPdfFile(pdfDoc, procedurePath);
     }
   }

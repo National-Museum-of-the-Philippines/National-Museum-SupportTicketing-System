@@ -1,7 +1,6 @@
 import fs from "node:fs";
-import path from "node:path";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { config } from "../config.js";
+import { materializeUpload } from "../utils/materializeUpload.js";
 import { Form } from "../models/Form.js";
 import { AppError } from "../utils/errors.js";
 import { embedTemplateWithPlacements, type Placement } from "./templateEmbedService.js";
@@ -15,11 +14,6 @@ type FormField = {
   label: string;
   options?: string[];
 };
-
-function resolveUploadPath(urlPath: string) {
-  const filename = path.basename(urlPath);
-  return path.join(config.uploadDir, filename);
-}
 
 function isPdfFile(urlPath: string, mimeType?: string) {
   return mimeType === "application/pdf" || /\.pdf$/i.test(urlPath);
@@ -116,15 +110,13 @@ export async function generateTicketDocumentPdf(ticketId: string) {
 
   const templateUrl = formDoc.printTemplateImagePath;
   if (templateUrl) {
-    const templatePath = resolveUploadPath(templateUrl);
-    const embedded = await embedTemplateWithPlacements(
-      pdfDoc,
-      templatePath,
-      placements,
-      values,
-      formDoc.printPlacementFontSize ?? 10,
-      { emptyFallbackToLabel: false, imageValues },
-    );
+    const templatePath = await materializeUpload(templateUrl);
+    const embedded = templatePath
+      ? await embedTemplateWithPlacements(pdfDoc, templatePath, placements, values, 16, {
+          emptyFallbackToLabel: false,
+          imageValues,
+        })
+      : false;
     if (!embedded && pdfDoc.getPageCount() === 0) {
       await appendTextSummaryPage(pdfDoc, ticket, fields, answers);
     }
@@ -135,15 +127,15 @@ export async function generateTicketDocumentPdf(ticketId: string) {
   }
 
   if (formDoc.workProcedurePath && isPdfFile(formDoc.workProcedurePath)) {
-    const procedurePath = resolveUploadPath(formDoc.workProcedurePath);
-    if (fs.existsSync(procedurePath)) {
+    const procedurePath = await materializeUpload(formDoc.workProcedurePath);
+    if (procedurePath && fs.existsSync(procedurePath)) {
       await appendPdfAttachment(pdfDoc, procedurePath);
     }
   }
 
   if (ticket.attachmentUrl && isPdfFile(ticket.attachmentUrl, ticket.attachmentMimeType)) {
-    const attachmentPath = resolveUploadPath(ticket.attachmentUrl);
-    if (fs.existsSync(attachmentPath)) {
+    const attachmentPath = await materializeUpload(ticket.attachmentUrl);
+    if (attachmentPath && fs.existsSync(attachmentPath)) {
       await appendPdfAttachment(pdfDoc, attachmentPath);
     }
   }

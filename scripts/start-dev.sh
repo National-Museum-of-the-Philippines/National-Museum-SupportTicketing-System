@@ -53,19 +53,15 @@ echo ""
 echo "NMP Ticketing - starting Laravel API + frontend"
 echo ""
 
-if [[ ! -f "$ROOT/laravel/.env" ]]; then
-  echo "ERROR: laravel/.env missing"
+if [[ ! -f "$ROOT/.env" ]]; then
+  echo "ERROR: .env missing"
   exit 1
-fi
-if [[ ! -f "$ROOT/frontend/.env" ]] && [[ -f "$ROOT/frontend/.env.example" ]]; then
-  cp "$ROOT/frontend/.env.example" "$ROOT/frontend/.env"
-  echo "Created frontend/.env"
 fi
 
 # Shared upload dir + public symlink for artisan serve
 mkdir -p "$ROOT/backend/uploads"
-if [[ ! -e "$ROOT/laravel/public/uploads" ]]; then
-  ln -sfn "$ROOT/backend/uploads" "$ROOT/laravel/public/uploads"
+if [[ ! -e "$ROOT/public/uploads" ]]; then
+  ln -sfn "$ROOT/backend/uploads" "$ROOT/public/uploads"
 fi
 
 # Recover hung Laravel (listen queue full / zombie php -S child).
@@ -74,7 +70,7 @@ free_port_if_stuck 4000 "http://127.0.0.1:4000/api/health"
 if ! api_ready; then
   echo "Seeding database (MySQL nmp_ticketing)..."
   (
-    cd "$ROOT/laravel"
+    cd "$ROOT"
     php artisan nmp:seed
     php artisan nmp:rbac-seed
   ) || {
@@ -85,7 +81,7 @@ if ! api_ready; then
 
   echo "Starting Laravel API on :4000..."
   (
-    cd "$ROOT/laravel"
+    cd "$ROOT"
     echo "LARAVEL - keep this process running"
     php artisan serve --host=0.0.0.0 --port=4000
   ) &
@@ -114,9 +110,9 @@ if [[ -f "$ROOT/backend/src/realtime-server.ts" ]]; then
     echo "Starting realtime sidecar on :4001..."
     (
       cd "$ROOT/backend"
-      # Load JWT from laravel/.env when unset (HS256 needs >= 32 bytes for php-jwt)
-      if [[ -z "${JWT_SECRET:-}" ]] && [[ -f "$ROOT/laravel/.env" ]]; then
-        JWT_SECRET="$(grep -E '^JWT_SECRET=' "$ROOT/laravel/.env" | head -1 | cut -d= -f2-)"
+      # Load JWT from .env when unset (HS256 needs >= 32 bytes for php-jwt)
+      if [[ -z "${JWT_SECRET:-}" ]] && [[ -f "$ROOT/.env" ]]; then
+        JWT_SECRET="$(grep -E '^JWT_SECRET=' "$ROOT/.env" | head -1 | cut -d= -f2-)"
       fi
       export JWT_SECRET="${JWT_SECRET:-change-me-in-production-nmp-ticketing}"
       export REALTIME_INTERNAL_SECRET="${REALTIME_INTERNAL_SECRET:-$JWT_SECRET}"
@@ -140,13 +136,29 @@ if [[ -f "$ROOT/backend/src/realtime-server.ts" ]]; then
   fi
 fi
 
+# dist/client/assets is sometimes left owned by root, so rm fails and the
+# whole start aborts. Rename the folder instead; the parent is writable.
+clear_dist() {
+  [[ -d "$ROOT/dist" ]] || return 0
+  if rm -rf "$ROOT/dist" 2>/dev/null; then
+    return 0
+  fi
+  local parked="$ROOT/dist.locked.$(date +%s)"
+  if mv "$ROOT/dist" "$parked"; then
+    echo "Could not delete dist. Moved it to ${parked##*/}."
+    return 0
+  fi
+  echo "ERROR: dist cannot be removed. Run: sudo chown -R $(id -un) \"$ROOT/dist\""
+  return 1
+}
+
 frontend_needs_build() {
-  local stamp="$ROOT/frontend/.nmp-onprem-build-stamp"
+  local stamp="$ROOT/.nmp-onprem-build-stamp"
   [[ -f "$stamp" ]] || return 0
-  [[ -d "$ROOT/frontend/dist" || -d "$ROOT/frontend/.output" ]] || return 0
+  [[ -d "$ROOT/dist" || -d "$ROOT/.output" ]] || return 0
   local newer
-  newer="$(find "$ROOT/frontend/src" "$ROOT/frontend/public" "$ROOT/frontend/vite.config.ts" \
-    "$ROOT/frontend/package.json" "$ROOT/frontend/tsconfig.json" \
+  newer="$(find "$ROOT/resources/js" "$ROOT/public" "$ROOT/vite.config.ts" \
+    "$ROOT/package.json" "$ROOT/tsconfig.json" \
     -newer "$stamp" \( -type f -o -type d \) -print -quit 2>/dev/null || true)"
   [[ -n "$newer" ]]
 }
@@ -165,18 +177,18 @@ fi
 if ! frontend_ready "$FRONTEND_PORT"; then
   echo "Starting frontend on :${FRONTEND_PORT}..."
   (
-    cd "$ROOT/frontend"
+    cd "$ROOT"
     echo "FRONTEND - keep this process running"
     # Bundled preview is what museum users open (fast). Unbundled Vite is
     # NMP_VITE_DEV=1 only — same APIs/proxies, hundreds of extra JS files.
     if [[ "${NMP_VITE_DEV:-}" == "1" ]]; then
-      bun run dev
+      bun run dev:vite
     else
       if [[ "${NMP_REBUILD:-}" == "1" ]] || frontend_needs_build; then
         echo "Building frontend bundle (once; later opens stay fast)..."
-        rm -rf "$ROOT/frontend/dist"
-        bun run build
-        date -Iseconds > "$ROOT/frontend/.nmp-onprem-build-stamp"
+        clear_dist
+        bun run build:web
+        date -Iseconds > "$ROOT/.nmp-onprem-build-stamp"
       else
         echo "Using existing frontend bundle"
       fi

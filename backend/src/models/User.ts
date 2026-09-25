@@ -59,7 +59,7 @@ function mapRow(row: UserRow): UserDoc {
     updatedAt: asDateRequired(row.updated_at),
     async save() {
       await execute(
-        `UPDATE users SET email = :email, password_hash = :passwordHash, name = :name,
+        `UPDATE users_ SET email = :email, password_hash = :passwordHash, name = :name,
          division = :division, designation = :designation, role = :role, active = :active WHERE id = :id`,
         {
           id: doc._id,
@@ -150,13 +150,13 @@ function buildOrder(sort?: Record<string, 1 | -1>): string {
 
 export const User = {
   async findById(id: string): Promise<UserDoc | null> {
-    const rows = await query<UserRow[]>("SELECT * FROM users WHERE id = :id LIMIT 1", { id });
+    const rows = await query<UserRow[]>("SELECT * FROM users_ WHERE id = :id LIMIT 1", { id });
     return rows[0] ? mapRow(rows[0]) : null;
   },
 
   async findOne(filter: UserFilter): Promise<UserDoc | null> {
     const { sql, params } = buildWhere(filter);
-    const rows = await query<UserRow[]>(`SELECT * FROM users ${sql} LIMIT 1`, params);
+    const rows = await query<UserRow[]>(`SELECT * FROM users_ ${sql} LIMIT 1`, params);
     return rows[0] ? mapRow(rows[0]) : null;
   },
 
@@ -173,7 +173,7 @@ export const User = {
       limitSql = `LIMIT ${Number(options.skip)}, 18446744073709551615`;
     }
     const rows = await query<UserRow[]>(
-      `SELECT * FROM users ${sql} ${order} ${limitSql}`.trim(),
+      `SELECT * FROM users_ ${sql} ${order} ${limitSql}`.trim(),
       params,
     );
     return rows.map(mapRow);
@@ -191,7 +191,7 @@ export const User = {
   }): Promise<UserDoc> {
     const id = newId();
     await execute(
-      `INSERT INTO users (id, email, password_hash, name, division, designation, role, active)
+      `INSERT INTO users_ (id, email, password_hash, name, division, designation, role, active)
        VALUES (:id, :email, :passwordHash, :name, :division, :designation, :role, :active)`,
       {
         id,
@@ -212,6 +212,6 @@ export const User = {
   async deleteMany(filter: UserFilter): Promise<void> {
     const { sql, params } = buildWhere(filter);
     if (!sql) return;
-    await execute(`DELETE FROM users ${sql}`, params);
+    await execute(`DELETE FROM users_ ${sql}`, params);
   },
 };

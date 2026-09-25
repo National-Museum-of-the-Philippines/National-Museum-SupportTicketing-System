@@ -101,7 +101,7 @@ export const Poke = {
   async find(filter: PokeFilter = {}, options: PokeFindOptions = {}): Promise<PokeDoc[]> {
     const { sql, params } = buildWhere(filter);
     const populateFrom = wantsPopulateFrom(options.populate);
-    const join = populateFrom ? "LEFT JOIN users u ON u.id = p.from_user_id" : "";
+    const join = populateFrom ? "LEFT JOIN users_ u ON u.id = p.from_user_id" : "";
     const selectExtra = populateFrom ? ", u.name AS from_name, u.role AS from_role" : "";
     const order = buildOrder(options.sort);
     let limitSql = "";

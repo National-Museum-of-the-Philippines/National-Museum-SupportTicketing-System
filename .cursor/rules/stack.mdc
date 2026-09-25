@@ -1,0 +1,45 @@
+---
+description: Which stack to use for backend and frontend work in this project
+alwaysApply: true
+---
+
+# Stack to use
+
+## Backend — Laravel only
+
+All backend work is in the repository root (Laravel 12, PHP 8.2): `app/`,
+`routes/`, `config/`, and `database/`. Business logic belongs in `app/Services/`
+(`TicketService`, `FormService`, `PamanaEmployeeService`), not in controllers.
+
+Schema changes must be a migration in `database/migrations/` — never edit the
+database by hand.
+
+## Frontend — keep the existing stack
+
+React source lives in `resources/js/`, bundled by the root Vite config. Do not
+introduce another framework, router, styling system, or data-fetching library.
+
+- React 19 + TypeScript on Vite, as a client-side SPA. Laravel is the JSON API only.
+- Routing: TanStack Router, file-based in `resources/js/routes/`
+- Server state: TanStack Query (`useQuery` / `useMutation`) via `resources/js/lib/api/client.ts`
+- UI: existing shadcn-style components in `resources/js/components/ui/` built on Radix
+  primitives; Tailwind CSS v4 for styling; `lucide-react` icons; `sonner` toasts
+- Forms: `react-hook-form` + `zod`
+- Package manager and runner: Bun
+
+Reuse a component from `resources/js/components/ui/` before adding a dependency. If a new
+package is genuinely needed, say so and wait for approval.
+
+## `backend/` is legacy — do not build there
+
+The Node/Express app in `backend/` is retired except for two pieces still wired
+into the running system:
+
+- the realtime sidecar (`src/realtime-server.ts`, port 4001)
+- the PDF worker (`src/cli/generate-pdf.ts`), invoked by `PdfDocumentService`
+
+Touch these only to fix bugs in those two paths. Never add a new feature or
+endpoint here — it goes in Laravel.
+
+Note the schema drift risk: the ticketing users table is `users_`, and `users`
+holds login credentials only. Laravel's `User` model already points at `users_`.

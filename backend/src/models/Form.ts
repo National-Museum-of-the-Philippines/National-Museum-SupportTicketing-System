@@ -135,7 +135,7 @@ function mapRow(row: FormRow, populatedCreator?: PopulatedUserRef | null): FormD
     printTemplate: row.print_template ?? "",
     printTemplateImagePath: row.print_template_image_path,
     printPlacements: parseJson(row.print_placements, []),
-    printPlacementFontSize: row.print_placement_font_size ?? 10,
+    printPlacementFontSize: row.print_placement_font_size ?? 16,
     workProcedureName: row.work_procedure_name ?? "",
     workProcedurePath: row.work_procedure_path,
     status: row.status,
@@ -296,7 +296,7 @@ async function fetchForms(filter: FormFilter = {}, options: FormFindOptions = {}
   const { sql, params } = buildWhere(filter);
   const populateCreator = wantsPopulateCreatedBy(options.populate);
   const join = populateCreator
-    ? "LEFT JOIN users u ON u.id = f.created_by"
+    ? "LEFT JOIN users_ u ON u.id = f.created_by"
     : "";
   const selectExtra = populateCreator
     ? ", u.name AS creator_name, u.email AS creator_email, u.division AS creator_division"
@@ -376,7 +376,7 @@ export const Form = {
         printTemplate: data.printTemplate ?? "",
         printTemplateImagePath: data.printTemplateImagePath ?? null,
         printPlacements: toJson(data.printPlacements ?? []),
-        printPlacementFontSize: data.printPlacementFontSize ?? 10,
+        printPlacementFontSize: data.printPlacementFontSize ?? 16,
         workProcedureName: data.workProcedureName ?? "",
         workProcedurePath: data.workProcedurePath ?? null,
         status: data.status ?? "draft",

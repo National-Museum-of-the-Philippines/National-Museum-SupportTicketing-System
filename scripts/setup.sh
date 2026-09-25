@@ -21,10 +21,12 @@ copy_env_example() {
 }
 
 copy_env_example "$ROOT/backend"
-copy_env_example "$ROOT/frontend"
+copy_env_example "$ROOT"
 
 echo ""
 echo "Next:"
-echo "  Terminal 1: cd backend; bun install; bun run seed; bun run dev"
-echo "  Terminal 2: cd frontend; bun install; bun run dev"
+echo "  bun install"
+echo "  composer install"
+echo "  php artisan migrate"
+echo "  bun run start"
 echo "  App: http://on-prem.x-dcb.net:5173"

@@ -100,7 +100,7 @@ async function loadAssignees(ticketId: string): Promise<AssigneeUser[]> {
   const rows = await query<RowDataPacket[]>(
     `SELECT u.id, u.name, u.email, u.division
      FROM ticket_assignees ta
-     JOIN users u ON u.id = ta.user_id
+     JOIN users_ u ON u.id = ta.user_id
      WHERE ta.ticket_id = :ticketId
      ORDER BY u.name ASC`,
     { ticketId },
@@ -216,7 +216,7 @@ function mapRow(row: TicketRow, assignedTo: string[] | AssigneeUser[] = []): Tic
         doc.assignedTo = await loadAssignees(doc._id);
       } else if (path === "creatorId") {
         const rows = await query<RowDataPacket[]>(
-          "SELECT id, name, email, division FROM users WHERE id = :id LIMIT 1",
+          "SELECT id, name, email, division FROM users_ WHERE id = :id LIMIT 1",
           { id: creatorIdOf(doc.creatorId) },
         );
         if (rows[0]) {
@@ -244,7 +244,7 @@ function mapRow(row: TicketRow, assignedTo: string[] | AssigneeUser[] = []): Tic
             printTemplate: String(r.print_template ?? ""),
             printTemplateImagePath: r.print_template_image_path as string | null,
             printPlacements: parseJson(r.print_placements, [] as FormPlacement[]),
-            printPlacementFontSize: Number(r.print_placement_font_size ?? 10),
+            printPlacementFontSize: Number(r.print_placement_font_size ?? 16),
             workProcedurePath: r.work_procedure_path as string | null,
             workProcedureName: String(r.work_procedure_name ?? ""),
           };

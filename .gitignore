@@ -1,7 +1,12 @@
 node_modules/
 .playwright-mcp/
 dist/
+dist.locked.*/
+.output
+.vinxi
+.tanstack/
 .wrangler/
+.nmp-onprem-build-stamp
 .dev.vars
 .env
 .env.*
@@ -9,3 +14,14 @@ dist/
 *.log
 .DS_Store
 .data/
+/vendor
+/public/build
+/public/hot
+/public/storage
+/public/uploads
+/storage/*.key
+/storage/pail
+.phpunit.result.cache
+.phpunit.cache
+.phpactor.json
+/auth.json

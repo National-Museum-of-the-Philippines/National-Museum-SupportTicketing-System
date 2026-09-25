@@ -1,9 +1,8 @@
 import { isPlacementCheckmark } from "../utils/placementChoiceValues.js";
 import { placementValueKey } from "../utils/placementValues.js";
 import fs from "node:fs";
-import path from "node:path";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
-import { config } from "../config.js";
+import { materializeUpload } from "../utils/materializeUpload.js";
 
 export type Placement = {
   variable: string;
@@ -18,17 +17,77 @@ export type Placement = {
  * Baseline sits ~ascender below the top of that translated box.
  */
 const FONT_ASCENDER_RATIO = 0.72;
+export const PRINT_OVERLAY_FONT_SIZE_PX = 16;
+const SAME_ROW_Y_PCT = 2.5;
+
+function placementSlotWidthPct(
+  xPct: number,
+  yPct: number,
+  placements: Placement[],
+  selfIndex: number,
+): number {
+  let nextX = 99.2;
+  for (let i = 0; i < placements.length; i += 1) {
+    if (i === selfIndex) continue;
+    const other = placements[i];
+    if (Math.abs(other.yPct - yPct) > SAME_ROW_Y_PCT) continue;
+    if (other.xPct <= xPct + 0.35) continue;
+    nextX = Math.min(nextX, other.xPct);
+  }
+  return Math.max(3, nextX - xPct - 0.6);
+}
+
+function wrapTextToWidth(font: PDFFont, text: string, size: number, maxWidth: number): string[] {
+  const widthOf = (value: string) => font.widthOfTextAtSize(value, size);
+  const lines: string[] = [];
+
+  const pushWrappedToken = (token: string) => {
+    if (widthOf(token) <= maxWidth) {
+      lines.push(token);
+      return;
+    }
+    let chunk = "";
+    for (const char of token) {
+      const trial = chunk + char;
+      if (chunk && widthOf(trial) > maxWidth) {
+        lines.push(chunk);
+        chunk = char;
+      } else {
+        chunk = trial;
+      }
+    }
+    if (chunk) lines.push(chunk);
+  };
+
+  for (const paragraph of text.split(/\n/)) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (words.length === 0) continue;
+    let current = "";
+    for (const word of words) {
+      const trial = current ? `${current} ${word}` : word;
+      if (widthOf(trial) <= maxWidth) {
+        current = trial;
+        continue;
+      }
+      if (current) lines.push(current);
+      if (widthOf(word) <= maxWidth) {
+        current = word;
+      } else {
+        pushWrappedToken(word);
+        current = "";
+      }
+    }
+    if (current) lines.push(current);
+  }
+
+  return lines.length > 0 ? lines : [text];
+}
 
 const PREFERRED_FONTS = [
   "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
   "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
   "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 ];
-
-function resolveLocalUploadPath(urlPath: string) {
-  const filename = path.basename(urlPath);
-  return path.join(config.uploadDir, filename);
-}
 
 function placementBaselineFromTop(pageHeight: number, yPct: number, fontSize: number) {
   const anchorTop = (yPct / 100) * pageHeight;
@@ -136,13 +195,15 @@ async function drawPlacementsOnPage(
   emptyFallbackToLabel: boolean,
 ) {
   const { width, height } = page.getSize();
-  const maxWidth = fontSize * 15;
 
-  for (const placement of placements) {
+  for (let index = 0; index < placements.length; index += 1) {
+    const placement = placements[index];
     const imageUrl = imageValues[placement.variable]?.trim();
     if (imageUrl) {
-      const imagePath = resolveLocalUploadPath(imageUrl);
-      const drawn = await drawPlacementImage(page, pdfDoc, imagePath, placement, fontSize);
+      const imagePath = await materializeUpload(imageUrl);
+      const drawn = imagePath
+        ? await drawPlacementImage(page, pdfDoc, imagePath, placement, fontSize)
+        : false;
       if (drawn) continue;
     }
 
@@ -163,22 +224,20 @@ async function drawPlacementsOnPage(
     const text = sanitizeDrawText(font, rawText);
     if (!text) continue;
 
-    // Draw as a single line (no wrap) so letter spacing stays even like the mapper preview.
-    let drawText = text;
-    let drawSize = fontSize;
-    const textWidth = font.widthOfTextAtSize(drawText, drawSize);
-    if (textWidth > maxWidth && drawText.length > 1) {
-      // Slightly shrink rather than wrapping mid-word (which looks uneven).
-      drawSize = Math.max(4, (fontSize * maxWidth) / textWidth);
-    }
+    const slotWidth =
+      (placementSlotWidthPct(placement.xPct, placement.yPct, placements, index) / 100) * width;
+    const wrapped = wrapTextToWidth(font, text, fontSize, slotWidth);
+    const lineGap = fontSize * 1.15;
 
-    page.drawText(drawText, {
-      x,
-      y,
-      size: drawSize,
-      font,
-      color: rgb(0.1, 0.1, 0.1),
-    });
+    for (let lineIndex = 0; lineIndex < wrapped.length; lineIndex += 1) {
+      page.drawText(wrapped[lineIndex], {
+        x,
+        y: y - lineIndex * lineGap,
+        size: fontSize,
+        font,
+        color: rgb(0.1, 0.1, 0.1),
+      });
+    }
   }
 }
 
@@ -208,7 +267,7 @@ export async function embedTemplateWithPlacements(
       pdfDoc.addPage(page);
       if (i === 0 && placements.length > 0) {
         const { width } = page.getSize();
-        const drawSize = fontSizeForPdfPage(width, fontSize);
+        const drawSize = fontSizeForPdfPage(width, PRINT_OVERLAY_FONT_SIZE_PX);
         await drawPlacementsOnPage(
           page,
           pdfDoc,
@@ -245,7 +304,7 @@ export async function embedTemplateWithPlacements(
       placements,
       values,
       imageValues,
-      fontSize,
+      PRINT_OVERLAY_FONT_SIZE_PX,
       font,
       emptyFallbackToLabel,
     );

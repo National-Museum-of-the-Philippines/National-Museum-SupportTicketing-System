@@ -34,6 +34,5 @@ Demo `@nmp.gov.ph` seed accounts have been removed.
 ## Build
 
 ```bash
-cd backend && bun run build
-cd frontend && bun run build
+bun run build
 ```
