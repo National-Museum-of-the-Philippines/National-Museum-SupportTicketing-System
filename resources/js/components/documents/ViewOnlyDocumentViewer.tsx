@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { placementCanvasStyle } from "@/components/documents/buildPlacementOverlay";
+import { ajax } from "@/lib/ajax";
 import { isImagePath, isPdfPath, resolveMediaUrl } from "@/lib/media-url";
 import {
   pdfBlobAllPagesStackedToDataUrl,
@@ -333,7 +334,7 @@ async function loadDocumentBlob(src: string, blobLoader?: () => Promise<Blob>) {
   if (blobLoader) {
     return blobLoader();
   }
-  const response = await fetch(src);
+  const response = await ajax(src);
   if (!response.ok) {
     throw new Error(`Could not load document (${response.status}).`);
   }

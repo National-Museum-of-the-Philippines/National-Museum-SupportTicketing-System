@@ -13,6 +13,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/health', HealthController::class);
 
+Route::get('/csrf-token', function () {
+    return response()->json(['token' => csrf_token()]);
+})->middleware('web');
+
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::middleware('jwt.auth')->group(function () {

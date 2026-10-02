@@ -25,10 +25,6 @@ api_ready() {
     || curl -sf --max-time 2 "http://on-prem.x-dcb.net:4000/api/health" >/dev/null 2>&1
 }
 
-realtime_ready() {
-  curl -sf --max-time 2 "http://127.0.0.1:4001/health" >/dev/null 2>&1
-}
-
 frontend_ready() {
   local port="${1:-$FRONTEND_PORT}"
   curl -sf --max-time 2 "http://127.0.0.1:${port}/" >/dev/null 2>&1 \
@@ -105,35 +101,27 @@ else
   echo "API already running: http://127.0.0.1:4000"
 fi
 
-if [[ -f "$ROOT/backend/src/realtime-server.ts" ]]; then
-  if ! realtime_ready; then
-    echo "Starting realtime sidecar on :4001..."
-    (
-      cd "$ROOT/backend"
-      # Load JWT from .env when unset (HS256 needs >= 32 bytes for php-jwt)
-      if [[ -z "${JWT_SECRET:-}" ]] && [[ -f "$ROOT/.env" ]]; then
-        JWT_SECRET="$(grep -E '^JWT_SECRET=' "$ROOT/.env" | head -1 | cut -d= -f2-)"
-      fi
-      export JWT_SECRET="${JWT_SECRET:-change-me-in-production-nmp-ticketing}"
-      export REALTIME_INTERNAL_SECRET="${REALTIME_INTERNAL_SECRET:-$JWT_SECRET}"
-      export MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
-      export MYSQL_USER="${MYSQL_USER:-root}"
-      export MYSQL_PASSWORD="${MYSQL_PASSWORD:-2026nmpict}"
-      export MYSQL_DATABASE="${MYSQL_DATABASE:-nmp_ticketing}"
-      echo "REALTIME - keep this process running"
-      bun src/realtime-server.ts
-    ) &
-    REALTIME_PID=$!
-    for _ in $(seq 1 20); do
-      sleep 1
-      if realtime_ready; then
-        echo "Realtime ready: http://127.0.0.1:4001/health"
-        break
-      fi
-    done
-  else
-    echo "Realtime already running: http://127.0.0.1:4001"
-  fi
+reverb_ready() {
+  ss -tlnH "sport = :8080" 2>/dev/null | grep -q ":8080"
+}
+
+if ! reverb_ready; then
+  echo "Starting Laravel Reverb on :8080..."
+  (
+    cd "$ROOT"
+    echo "REVERB - keep this process running"
+    php artisan reverb:start --host=0.0.0.0 --port=8080
+  ) &
+  REALTIME_PID=$!
+  for _ in $(seq 1 20); do
+    sleep 1
+    if reverb_ready; then
+      echo "Reverb ready: ws://127.0.0.1:8080"
+      break
+    fi
+  done
+else
+  echo "Reverb already running: ws://127.0.0.1:8080"
 fi
 
 # dist/client/assets is sometimes left owned by root, so rm fails and the
@@ -229,7 +217,7 @@ echo "  Example (if in PAMANA): resty.morancil"
 echo "  Fast bundled frontend is the default. Slow unbundled Vite: NMP_VITE_DEV=1"
 echo ""
 echo "API:      http://127.0.0.1:4000/api/health"
-echo "Realtime: http://127.0.0.1:4001/health (socket.io)"
+echo "Reverb:   ws://127.0.0.1:8080"
 echo ""
 echo "Press Ctrl+C to stop services started by this script."
 echo ""

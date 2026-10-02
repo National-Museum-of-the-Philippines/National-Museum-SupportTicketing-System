@@ -13,6 +13,7 @@ import type { ApiUser } from "@/lib/api/types";
 import { queryClient } from "@/lib/query-client";
 import {
   AUTH_CHANGED_EVENT,
+  currentRoutePath,
   getSession,
   listSessions,
   notifySessionChanged,
@@ -85,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const onAuthChanged = () => {
-      const slot = pathToSlot(window.location.pathname);
+      const slot = pathToSlot(currentRoutePath());
       syncFromLocal(slot);
     };
 
@@ -127,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setSessions(readSessionsMap());
 
-      const currentSlot = pathToSlot(window.location.pathname);
+      const currentSlot = pathToSlot(currentRoutePath());
       if (
         currentSlot === slot ||
         currentSlot === "client" ||

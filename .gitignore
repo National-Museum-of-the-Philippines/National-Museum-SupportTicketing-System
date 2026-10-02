@@ -25,3 +25,5 @@ dist.locked.*/
 .phpunit.cache
 .phpactor.json
 /auth.json
+*.swp
+*.swo

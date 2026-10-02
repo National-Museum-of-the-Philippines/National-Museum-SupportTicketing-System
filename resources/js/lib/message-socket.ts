@@ -1,10 +1,19 @@
-import { io, type Socket } from "socket.io-client";
+import Echo from "laravel-echo";
+import Pusher from "pusher-js";
+import { apiBase } from "@/lib/api-base";
 import type { ConversationMessageRecord, MentionRecord, PokeRecord } from "@/lib/api/types";
-import { getTokenForSlot, type PortalSlot } from "@/lib/sessions";
+import { getSession, getTokenForSlot, type PortalSlot } from "@/lib/sessions";
 
 export type RealtimeMessageEvent = {
   conversationId: string;
   message: ConversationMessageRecord;
+};
+
+export type RealtimeConversationEvent = {
+  conversationId: string;
+  lastMessageAt: string;
+  lastMessagePreview: string;
+  lastSenderName: string;
 };
 
 export type RealtimeNotificationEvent = {
@@ -20,87 +29,117 @@ export type RealtimeNotificationEvent = {
   createdAt?: string;
 };
 
-const sockets = new Map<PortalSlot, Socket>();
+type EchoConnection = Echo<"reverb">;
 
-function socketUrl() {
-  const api = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "");
-  if (api) return api;
-  if (typeof window !== "undefined") return window.location.origin;
-  return "";
+declare global {
+  interface Window {
+    Pusher: typeof Pusher;
+  }
 }
 
-export function getMessageSocket(slot: PortalSlot): Socket | null {
+const connections = new Map<PortalSlot, EchoConnection>();
+
+function reverbHost() {
+  return (import.meta.env.VITE_REVERB_HOST || "localhost").replaceAll('"', "");
+}
+
+function reverbPort() {
+  const raw = String(import.meta.env.VITE_REVERB_PORT || "8080").replaceAll('"', "");
+  const port = Number(raw);
+  return Number.isFinite(port) ? port : 8080;
+}
+
+function channelNames(slot: PortalSlot): string[] {
+  const user = getSession(slot)?.user;
+  if (!user) return [];
+  const names = [`user.${user.id}`, `role.${user.role}`, "inbox"];
+  if (user.role === "super_admin") {
+    names.push("role.admin", "role.record_management");
+  }
+  return names;
+}
+
+export function getMessageSocket(slot: PortalSlot): EchoConnection | null {
   if (typeof window === "undefined") return null;
 
   const token = getTokenForSlot(slot);
   if (!token) return null;
 
-  let socket = sockets.get(slot);
-  if (socket) return socket;
+  const existing = connections.get(slot);
+  if (existing) return existing;
 
-  socket = io(socketUrl(), {
-    path: "/socket.io",
-    auth: { token },
-    transports: ["websocket", "polling"],
-    timeout: 4000,
-    reconnectionDelay: 1500,
-    reconnectionAttempts: 8,
-    autoConnect: true,
+  window.Pusher = Pusher;
+  const echo = new Echo({
+    broadcaster: "reverb",
+    key: import.meta.env.VITE_REVERB_APP_KEY,
+    wsHost: reverbHost(),
+    wsPort: reverbPort(),
+    wssPort: reverbPort(),
+    forceTLS: (import.meta.env.VITE_REVERB_SCHEME || "http").replaceAll('"', "") === "https",
+    wsPath: "/support",
+    enabledTransports: ["ws", "wss"],
+    authEndpoint: `${apiBase()}/broadcasting/auth`,
+    auth: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    },
   });
 
-  sockets.set(slot, socket);
-  return socket;
+  connections.set(slot, echo);
+  return echo;
 }
 
 export function disconnectMessageSocket(slot: PortalSlot) {
-  const socket = sockets.get(slot);
-  if (!socket) return;
-  socket.disconnect();
-  sockets.delete(slot);
+  const echo = connections.get(slot);
+  if (!echo) return;
+  echo.disconnect();
+  connections.delete(slot);
 }
 
-export function joinConversationRoom(slot: PortalSlot, conversationId: string) {
-  const socket = getMessageSocket(slot);
-  socket?.emit("join:conversation", conversationId);
+export function joinConversationRoom(slot: PortalSlot, _conversationId: string) {
+  getMessageSocket(slot);
+}
+
+function listen<T>(slot: PortalSlot, event: string, handler: (payload: T) => void) {
+  const echo = getMessageSocket(slot);
+  if (!echo) return () => undefined;
+
+  const names = channelNames(slot);
+  for (const name of names) {
+    echo.private(name).listen(`.${event}`, handler);
+  }
+
+  return () => {
+    for (const name of names) {
+      echo.private(name).stopListening(`.${event}`, handler);
+    }
+  };
 }
 
 export function onRealtimeMessage(slot: PortalSlot, handler: (event: RealtimeMessageEvent) => void) {
-  const socket = getMessageSocket(slot);
-  if (!socket) return () => undefined;
-  socket.on("message:new", handler);
-  return () => socket.off("message:new", handler);
+  return listen(slot, "message.new", handler);
 }
 
 export function onRealtimeConversationUpdate(
   slot: PortalSlot,
   handler: (event: RealtimeConversationEvent) => void,
 ) {
-  const socket = getMessageSocket(slot);
-  if (!socket) return () => undefined;
-  socket.on("conversation:update", handler);
-  return () => socket.off("conversation:update", handler);
+  return listen(slot, "conversation.update", handler);
 }
 
 export function onRealtimePoke(slot: PortalSlot, handler: (poke: PokeRecord) => void) {
-  const socket = getMessageSocket(slot);
-  if (!socket) return () => undefined;
-  socket.on("poke", handler);
-  return () => socket.off("poke", handler);
+  return listen(slot, "poke", handler);
 }
 
 export function onRealtimeMention(slot: PortalSlot, handler: (mention: MentionRecord) => void) {
-  const socket = getMessageSocket(slot);
-  if (!socket) return () => undefined;
-  socket.on("mention", handler);
-  return () => socket.off("mention", handler);
+  return listen(slot, "mention", handler);
 }
 
 export function onRealtimeNotification(
   slot: PortalSlot,
   handler: (event: RealtimeNotificationEvent) => void,
 ) {
-  const socket = getMessageSocket(slot);
-  if (!socket) return () => undefined;
-  socket.on("notification", handler);
-  return () => socket.off("notification", handler);
+  return listen(slot, "notification", handler);
 }

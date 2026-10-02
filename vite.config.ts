@@ -9,21 +9,20 @@ import viteReact from "@vitejs/plugin-react";
 const root = path.dirname(fileURLToPath(import.meta.url));
 
 const allowedHosts = [
-  "on-prem.x-dcb.net",
+  "nmp-ict.lan",
   "localhost",
   "127.0.0.1",
   "10.138.21.235",
   "202.90.136.222",
 ];
 
-const proxy = {
-  "/api": { target: "http://127.0.0.1:4000", changeOrigin: true },
-  "/uploads": { target: "http://127.0.0.1:4000", changeOrigin: true },
-  "/socket.io": { target: "http://127.0.0.1:4001", ws: true, changeOrigin: true },
-};
-
 export default defineConfig(({ mode }) => {
   const loadedEnv = loadEnv(mode, root, "VITE_");
+  const apiUrl = (loadedEnv.VITE_API_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
+  const proxy = {
+    "/api": { target: apiUrl, changeOrigin: true },
+    "/uploads": { target: apiUrl, changeOrigin: true },
+  };
   const envDefine: Record<string, string> = {};
   for (const [key, value] of Object.entries(loadedEnv)) {
     envDefine[`import.meta.env.${key}`] = JSON.stringify(value);
@@ -54,7 +53,8 @@ export default defineConfig(({ mode }) => {
         "@tanstack/react-query",
         "@tanstack/query-core",
         "@tanstack/react-router",
-        "socket.io-client",
+        "laravel-echo",
+        "pusher-js",
         "sonner",
         "lucide-react",
         "clsx",
@@ -109,6 +109,16 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
       outDir: "dist",
       assetsDir: "assets",
+      rollupOptions: {
+        output: {
+          // nginx has no MIME entry for .mjs and serves it as application/octet-stream,
+          // which the browser rejects for module scripts (pdf.js worker). Emit as .js.
+          assetFileNames: (assetInfo) => {
+            const name = assetInfo.names?.[0] ?? "";
+            return /\.mjs$/i.test(name) ? "assets/[name]-[hash].js" : "assets/[name]-[hash][extname]";
+          },
+        },
+      },
     },
     plugins: [
       ...plugins,

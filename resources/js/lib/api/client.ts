@@ -18,9 +18,20 @@ import type {
   TicketStatus,
   UploadedFileRecord,
 } from "./types";
-import { getTokenForSlot, pathToSlot, type PortalSlot } from "@/lib/sessions";
+import { apiBase } from "@/lib/api-base";
+import { ajax } from "@/lib/ajax";
+import { LOGIN } from "@/lib/navigation";
+import {
+  currentRoutePath,
+  getSession,
+  getTokenForSlot,
+  notifySessionChanged,
+  pathToSlot,
+  setSession,
+  type PortalSlot,
+} from "@/lib/sessions";
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+const API_BASE = apiBase();
 
 export class ApiError extends Error {
   constructor(
@@ -31,9 +42,50 @@ export class ApiError extends Error {
   }
 }
 
+const LOGIN_PATH = "/api/auth/login";
+const ALL_SLOTS: PortalSlot[] = ["admin", "records", "client"];
+
+/**
+ * The API rejected the saved login (expired token, server secret changed, user
+ * deactivated). Drop every slot holding that token — super admin seeds all
+ * three — and send the user to sign in again, otherwise the portal looks
+ * logged in while every request fails with 401.
+ */
+function handleUnauthorized(slot: PortalSlot | null, token: string | null) {
+  if (!slot || typeof window === "undefined") return;
+  if (token) {
+    let cleared = false;
+    for (const s of ALL_SLOTS) {
+      if (getSession(s)?.token === token) {
+        setSession(s, null, { notify: false });
+        cleared = true;
+      }
+    }
+    if (cleared) notifySessionChanged(slot);
+  }
+  if (pathToSlot(currentRoutePath()) === slot) {
+    // Hash history: the login route is `/#/login`, not `/login`.
+    const useHash = window.location.hash.startsWith("#/") || window.location.pathname === "/";
+    window.location.assign(useHash ? `${window.location.pathname}#${LOGIN}` : LOGIN);
+  }
+}
+
+async function throwApiError(
+  res: { status: number; statusText: string; json: () => Promise<unknown> },
+  path: string,
+  slot: PortalSlot | null,
+  token: string | null,
+): Promise<never> {
+  const body = (await res.json().catch(() => ({}))) as { error?: string };
+  if (res.status === 401 && path !== LOGIN_PATH) {
+    handleUnauthorized(slot, token);
+  }
+  throw new ApiError(res.status, body.error ?? res.statusText);
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit, slot?: PortalSlot): Promise<T> {
   const resolvedSlot =
-    slot ?? (typeof window !== "undefined" ? pathToSlot(window.location.pathname) : null);
+    slot ?? (typeof window !== "undefined" ? pathToSlot(currentRoutePath()) : null);
   const token = resolvedSlot ? getTokenForSlot(resolvedSlot) : null;
 
   const headers = new Headers(init?.headers);
@@ -42,10 +94,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit, slot?: Porta
   }
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  const res = await ajax(`${API_BASE}${path}`, {
+    method: init?.method,
+    headers,
+    body: init?.body,
+    signal: init?.signal ?? undefined,
+  });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(res.status, body.error ?? res.statusText);
+    await throwApiError(res, path, resolvedSlot, token);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -57,16 +113,20 @@ export async function apiFetchBlob(
   slot?: PortalSlot,
 ): Promise<Blob> {
   const resolvedSlot =
-    slot ?? (typeof window !== "undefined" ? pathToSlot(window.location.pathname) : null);
+    slot ?? (typeof window !== "undefined" ? pathToSlot(currentRoutePath()) : null);
   const token = resolvedSlot ? getTokenForSlot(resolvedSlot) : null;
 
   const headers = new Headers(init?.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  const res = await ajax(`${API_BASE}${path}`, {
+    method: init?.method,
+    headers,
+    body: init?.body,
+    signal: init?.signal ?? undefined,
+  });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(res.status, body.error ?? res.statusText);
+    await throwApiError(res, path, resolvedSlot, token);
   }
   return res.blob();
 }

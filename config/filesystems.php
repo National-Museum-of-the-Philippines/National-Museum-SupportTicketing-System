@@ -60,9 +60,18 @@ return [
             'report' => false,
         ],
 
-        // Shared ticket/form files. local keeps the existing UPLOAD_DIR; s3 is for EC2/ECS.
-        'uploads' => env('UPLOADS_DISK', 'local') === 's3'
+        // Shared ticket/form files. All uploads live on AWS S3 (private objects,
+        // streamed by the app at /uploads/{filename}). UPLOADS_DISK=local is an
+        // explicit opt-out for offline development only.
+        'uploads' => env('UPLOADS_DISK', 's3') === 'local'
             ? [
+                'driver' => 'local',
+                'root' => env('UPLOAD_DIR') ?: base_path('backend/uploads'),
+                'visibility' => 'private',
+                'throw' => true,
+                'report' => false,
+            ]
+            : [
                 'driver' => 's3',
                 'key' => env('AWS_ACCESS_KEY_ID'),
                 'secret' => env('AWS_SECRET_ACCESS_KEY'),
@@ -75,15 +84,7 @@ return [
                 'visibility' => 'private',
                 'throw' => true,
                 'report' => false,
-            ]
-            : [
-                'driver' => 'local',
-                'root' => env('UPLOAD_DIR') ?: base_path('backend/uploads'),
-                'visibility' => 'private',
-                'throw' => true,
-                'report' => false,
             ],
-
     ],
 
     /*

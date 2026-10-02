@@ -1,4 +1,6 @@
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+import { apiBase } from "@/lib/api-base";
+
+const API_BASE = apiBase();
 
 /** Resolve `/uploads/...` paths against the API host when configured. */
 export function resolveMediaUrl(path: string): string {

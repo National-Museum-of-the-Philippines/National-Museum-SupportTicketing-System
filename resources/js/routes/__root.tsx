@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -8,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 
 import { AuthProvider } from "@/lib/auth";
+import { csrfToken, loadCsrfToken } from "@/lib/csrf";
 import { LOGIN } from "@/lib/navigation";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -77,6 +79,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "csrf-token", content: csrfToken() },
       { title: "NMP Support Ticketing System" },
       {
         name: "description",
@@ -99,6 +102,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    void loadCsrfToken();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

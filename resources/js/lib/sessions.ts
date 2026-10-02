@@ -20,6 +20,18 @@ export function roleToSlot(role: string): PortalSlot {
   return "client";
 }
 
+/**
+ * Route path of the current page. The router uses hash history, so the real
+ * route lives in `location.hash` (`/#/admin/forms`) and `location.pathname`
+ * is always `/`. Falls back to the pathname when no hash route is present.
+ */
+export function currentRoutePath(): string {
+  if (typeof window === "undefined") return "";
+  const hash = window.location.hash;
+  if (hash.startsWith("#/")) return hash.slice(1).split("?")[0] ?? "";
+  return window.location.pathname;
+}
+
 export function pathToSlot(pathname: string): PortalSlot | null {
   if (pathname.startsWith("/super-admin")) return "admin";
   if (pathname.startsWith("/admin")) return "admin";
@@ -135,7 +147,7 @@ export function getTokenForSlot(slot: PortalSlot): string | null {
   return resolveSession(slot)?.token ?? null;
 }
 
-export function getTokenForPath(pathname: string): string | null {
+export function getTokenForPath(pathname: string = currentRoutePath()): string | null {
   const slot = pathToSlot(pathname);
   if (!slot) return null;
   return getTokenForSlot(slot);

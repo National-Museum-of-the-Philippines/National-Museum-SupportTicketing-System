@@ -48,4 +48,52 @@ class UploadStorageTest extends TestCase
 
         $this->get('/uploads/missing.pdf')->assertNotFound();
     }
+
+    public function test_store_fails_clearly_when_s3_is_not_configured(): void
+    {
+        config(['filesystems.disks.uploads' => [
+            'driver' => 's3',
+            'key' => '',
+            'secret' => '',
+            'region' => '',
+            'bucket' => '',
+        ]]);
+
+        $file = UploadedFile::fake()->create('request.pdf', 12, 'application/pdf');
+
+        try {
+            app(UploadService::class)->store($file);
+            $this->fail('Expected an ApiException');
+        } catch (ApiException $e) {
+            $this->assertSame(503, $e->status);
+            $this->assertStringContainsString('AWS_BUCKET', $e->getMessage());
+            $this->assertStringContainsString('AWS_DEFAULT_REGION', $e->getMessage());
+        }
+    }
+
+    public function test_s3_with_bucket_and_region_but_no_keys_is_accepted_as_iam_role(): void
+    {
+        config(['filesystems.disks.uploads' => [
+            'driver' => 's3',
+            'key' => '',
+            'secret' => '',
+            'region' => 'ap-southeast-1',
+            'bucket' => 'nmp-uploads',
+        ]]);
+
+        $this->assertNull(UploadService::configurationProblem());
+    }
+
+    public function test_s3_with_only_one_access_key_value_is_reported(): void
+    {
+        config(['filesystems.disks.uploads' => [
+            'driver' => 's3',
+            'key' => 'AKIA-example',
+            'secret' => '',
+            'region' => 'ap-southeast-1',
+            'bucket' => 'nmp-uploads',
+        ]]);
+
+        $this->assertStringContainsString('AWS_SECRET_ACCESS_KEY', (string) UploadService::configurationProblem());
+    }
 }

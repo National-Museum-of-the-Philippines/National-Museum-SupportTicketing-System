@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
+use App\Events\RealtimeBroadcast;
+use App\Models\Conversation;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Best-effort HTTP bridge to the socket.io sidecar (port 4001).
- * Messages still persist if the sidecar is down.
+ * Publishes live updates through Laravel Reverb.
+ * Messages still persist if Reverb is down.
  */
 class RealtimeService
 {
@@ -16,7 +18,7 @@ class RealtimeService
      */
     public function emitNewMessage(array $payload): void
     {
-        $this->post('/internal/emit/message', $payload);
+        $this->send('message.new', $payload, $this->channelsForConversation((string) ($payload['conversationId'] ?? '')));
     }
 
     /**
@@ -24,7 +26,7 @@ class RealtimeService
      */
     public function emitConversationUpdate(array $payload): void
     {
-        $this->post('/internal/emit/conversation-update', $payload);
+        $this->send('conversation.update', $payload, $this->channelsForConversation((string) ($payload['conversationId'] ?? '')));
     }
 
     /**
@@ -32,10 +34,7 @@ class RealtimeService
      */
     public function emitPoke(string $targetUserId, array $payload): void
     {
-        $this->post('/internal/emit/poke', [
-            'targetUserId' => $targetUserId,
-            'payload' => $payload,
-        ]);
+        $this->send('poke', $payload, RealtimeBroadcast::forUsers([$targetUserId]));
     }
 
     /**
@@ -43,10 +42,7 @@ class RealtimeService
      */
     public function emitMention(string $targetUserId, array $payload): void
     {
-        $this->post('/internal/emit/mention', [
-            'targetUserId' => $targetUserId,
-            'payload' => $payload,
-        ]);
+        $this->send('mention', $payload, RealtimeBroadcast::forUsers([$targetUserId]));
     }
 
     /**
@@ -58,40 +54,54 @@ class RealtimeService
      */
     public function emitNotification(array $payload, array $userIds = [], array $roles = []): void
     {
-        if ($userIds === [] && $roles === []) {
-            return;
-        }
-
-        $this->post('/internal/emit/notification', [
-            'userIds' => array_values(array_filter($userIds)),
-            'roles' => array_values(array_filter($roles)),
-            'payload' => $payload,
-        ]);
+        $channels = [
+            ...RealtimeBroadcast::forUsers($userIds),
+            ...RealtimeBroadcast::forRoles($roles),
+        ];
+        $this->send('notification', $payload, $channels);
     }
 
     public function refreshUserConversationRooms(string $userId): void
     {
-        $this->post('/internal/refresh-rooms', ['userId' => $userId]);
+        // Reverb delivers to the user's private channel at send time, so rooms
+        // do not need to be rejoined when a conversation membership changes.
     }
 
     /**
      * @param  array<string, mixed>  $payload
+     * @param  list<PrivateChannel>  $channels
      */
-    private function post(string $path, array $payload): void
+    private function send(string $event, array $payload, array $channels): void
     {
-        $base = rtrim((string) config('nmp.realtime_url'), '/');
-        if ($base === '') {
+        if ($channels === []) {
             return;
         }
 
         try {
-            Http::timeout(2)
-                ->withHeaders([
-                    'X-Internal-Secret' => (string) config('nmp.realtime_internal_secret'),
-                ])
-                ->post($base.$path, $payload);
+            broadcast(new RealtimeBroadcast($event, $payload, $channels));
         } catch (\Throwable $e) {
             Log::debug('Realtime notify failed: '.$e->getMessage());
         }
+    }
+
+    /**
+     * @return list<PrivateChannel>
+     */
+    private function channelsForConversation(string $conversationId): array
+    {
+        if ($conversationId === '') {
+            return [];
+        }
+
+        $conversation = Conversation::query()->find($conversationId);
+        if (! $conversation) {
+            return [];
+        }
+
+        if ($conversation->is_global) {
+            return [new PrivateChannel('inbox')];
+        }
+
+        return RealtimeBroadcast::forUsers($conversation->participantIds());
     }
 }
