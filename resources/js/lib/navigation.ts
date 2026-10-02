@@ -9,7 +9,10 @@ export const SUPER_ADMIN_SETTINGS = "/super-admin/settings";
 export const SUPER_ADMIN_PROFILE = "/super-admin/profile";
 export const SUPER_ADMIN_FORMS = "/super-admin/forms";
 export const SUPER_ADMIN_ACTIVITY = "/super-admin/activity";
+export const SUPER_ADMIN_ERRORS = "/super-admin/errors";
 export const SUPER_ADMIN_NOTIFICATIONS = "/super-admin/notifications";
+export const SUPER_ADMIN_MY_REQUESTS = "/super-admin/my-requests";
+export const SUPER_ADMIN_MY_REQUESTS_SUBMIT = "/super-admin/submit-request";
 
 export const ADMIN_DASHBOARD = "/admin/dashboard";
 export const ADMIN_FORMS = "/admin/forms";
@@ -29,6 +32,8 @@ export const RECORDS_PUBLISHED = "/records/published";
 export const RECORDS_ACTIVITY = "/records/activity";
 export const RECORDS_MESSAGES = "/records/messages";
 export const RECORDS_SETTINGS = "/records/settings";
+export const RECORDS_MY_REQUESTS = "/records/my-requests";
+export const RECORDS_MY_REQUESTS_SUBMIT = "/records/submit-request";
 
 export const CLIENT_DASHBOARD = "/client/dashboard";
 export const CLIENT_SUBMIT = "/client/submit";

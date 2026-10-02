@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { BookOpen, Clock, History, LayoutDashboard } from "lucide-react";
+import { BookOpen, Clock, History, Inbox, LayoutDashboard, Send } from "lucide-react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { PortalGateCard } from "@/components/layout/workspace-ui";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import {
   LOGIN,
   RECORDS_ACTIVITY,
   RECORDS_DASHBOARD,
+  RECORDS_MY_REQUESTS,
+  RECORDS_MY_REQUESTS_SUBMIT,
   RECORDS_PENDING,
   RECORDS_PUBLISHED,
 } from "@/lib/navigation";
@@ -96,6 +98,13 @@ function RecordsLayout() {
           items: [
             { to: RECORDS_PENDING, label: "Pending Forms", icon: Clock, badge: pendingCount },
             { to: RECORDS_PUBLISHED, label: "Published Forms", icon: BookOpen },
+          ],
+        },
+        {
+          title: "REQUESTS",
+          items: [
+            { to: RECORDS_MY_REQUESTS, label: "My Requests", icon: Inbox },
+            { to: RECORDS_MY_REQUESTS_SUBMIT, label: "Submit Request", icon: Send },
           ],
         },
         {

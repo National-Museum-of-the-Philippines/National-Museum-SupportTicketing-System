@@ -44,6 +44,7 @@ class NmpRbacSeedCommand extends Command
         // Admin reports / dashboard
         ['name' => 'view_admin_dashboard', 'description' => 'Access Admin portal dashboard', 'category' => 'Ticketing Admin'],
         ['name' => 'view_admin_reports', 'description' => 'View Admin reports', 'category' => 'Ticketing Admin'],
+        ['name' => 'view_error_monitoring', 'description' => 'View and resolve Error Monitoring entries (Super Admin)', 'category' => 'Ticketing Admin'],
 
         // RBAC
         ['name' => 'manage_rbac_users', 'description' => 'Assign roles to employees (RBAC Users)', 'category' => 'Ticketing RBAC'],

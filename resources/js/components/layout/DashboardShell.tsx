@@ -7,6 +7,7 @@ import {
   Menu,
   Settings,
   Shield,
+  ShieldCheck,
   Users,
   X,
   type LucideIcon,
@@ -15,6 +16,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { NmpLogo } from "@/components/layout/NmpLogo";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { MfaDialog } from "@/components/settings/MfaDialog";
 import { useAuth } from "@/lib/auth";
 import type { NotificationItem } from "@/lib/notifications";
 import {
@@ -95,6 +97,7 @@ export function DashboardShell({
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [mfaOpen, setMfaOpen] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -354,6 +357,16 @@ export function DashboardShell({
         </button>
         <button
           type="button"
+          className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+          onClick={() => setMfaOpen(true)}
+        >
+          <span className="sidebar-nav-icon sidebar-nav-icon-idle">
+            <ShieldCheck className="h-4 w-4" />
+          </span>
+          Set up MFA
+        </button>
+        <button
+          type="button"
           className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-rose-50 hover:text-rose-700"
           onClick={signOut}
         >
@@ -368,6 +381,7 @@ export function DashboardShell({
 
   return (
     <div className="workspace-app flex h-dvh overflow-hidden bg-[#f7f5f4]">
+      <MfaDialog open={mfaOpen} onOpenChange={setMfaOpen} />
       <aside className="workspace-sidebar hidden h-dvh w-64 shrink-0 lg:block">
         {sidebar}
       </aside>

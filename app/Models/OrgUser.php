@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 
 /**
- * Organizational login account in MySQL `users`
- * (password, is_active, username — Spatie roles via model_has_roles).
+ * Other auth methods for a login account, in nmp_ticketing `users`
+ * (two-factor secrets, Google Authenticator secret, remember token).
+ *
+ * `id` is pamana_auth.user.id. Identity, password, and active status are
+ * read from pamana_auth.user (PamanaAuthUser), never from this table.
  */
 class OrgUser extends Model
 {
@@ -16,19 +17,20 @@ class OrgUser extends Model
 
     protected $primaryKey = 'id';
 
-    public $incrementing = true;
+    public $incrementing = false;
 
     protected $keyType = 'int';
 
     protected $fillable = [
-        'username',
-        'email',
-        'password',
-        'is_active',
+        'id',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'two_factor_confirmed_at',
+        'google2fa_secret',
+        'remember_token',
     ];
 
     protected $hidden = [
-        'password',
         'two_factor_secret',
         'two_factor_recovery_codes',
         'google2fa_secret',
@@ -36,75 +38,30 @@ class OrgUser extends Model
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
+        'two_factor_confirmed_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
-    public function verifyPassword(string $plain): bool
+    /** Row for a pamana_auth.user id; a new unsaved instance when none exists yet. */
+    public static function forAuthId(int|string $authId): self
     {
-        $hash = (string) $this->password;
-        if ($hash === '') {
-            return false;
-        }
-
-        if (Hash::check($plain, $hash)) {
-            return true;
-        }
-
-        // Legacy hashes (e.g. plain bcrypt variants already covered by Hash::check)
-        return false;
+        return self::query()->firstOrNew(['id' => (int) $authId]);
     }
 
-    public function setPlainPassword(string $plain): void
+    /** The login account these auth methods belong to. */
+    public function account(): ?PamanaAuthUser
     {
-        $this->password = Hash::make($plain);
+        return PamanaAuthUser::findByAuthId($this->id);
     }
 
-    /**
-     * Map Spatie role names on this org user to Support Ticketing System portal roles.
-     *
-     * @return 'super_admin'|'admin'|'record_management'|'user'
-     */
-    public function ticketingRole(): string
+    public function hasTwoFactor(): bool
     {
-        $names = DB::table('model_has_roles as mhr')
-            ->join('roles as r', 'r.id', '=', 'mhr.role_id')
-            ->where('mhr.model_id', $this->id)
-            ->where(function ($q) {
-                $q->where('mhr.model_type', 'App\\Models\\User')
-                    ->orWhere('mhr.model_type', 'App\\Models\\Yii2User')
-                    ->orWhere('mhr.model_type', 'like', '%User');
-            })
-            ->pluck('r.name')
-            ->map(fn ($n) => strtolower((string) $n));
-
-        if ($names->contains('super_admin')) {
-            return 'super_admin';
-        }
-        if ($names->contains('admin')) {
-            return 'admin';
-        }
-        if ($names->contains('record_management') || $names->contains('records')) {
-            return 'record_management';
-        }
-        if ($names->contains('user') || $names->contains('staff')) {
-            return 'user';
-        }
-
-        return 'user';
+        return trim((string) $this->two_factor_secret) !== '' && $this->two_factor_confirmed_at !== null;
     }
 
-    public function displayName(): string
+    public function hasGoogle2fa(): bool
     {
-        $username = trim((string) ($this->username ?? ''));
-        if ($username !== '') {
-            return $username;
-        }
-
-        $email = (string) $this->email;
-        $local = strstr($email, '@', true);
-
-        return $local !== false && $local !== '' ? $local : $email;
+        return trim((string) $this->google2fa_secret) !== '';
     }
 }

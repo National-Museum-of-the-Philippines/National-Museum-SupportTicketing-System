@@ -10,6 +10,7 @@ import {
 
 import { AuthProvider } from "@/lib/auth";
 import { csrfToken, loadCsrfToken } from "@/lib/csrf";
+import { captureError, installGlobalErrorReporting } from "@/lib/error-reporter";
 import { LOGIN } from "@/lib/navigation";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -41,6 +42,9 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  useEffect(() => {
+    captureError(error, "render", "RootErrorBoundary");
+  }, [error]);
 
   return (
     <div className="gate-page">
@@ -105,6 +109,7 @@ function RootComponent() {
 
   useEffect(() => {
     void loadCsrfToken();
+    return installGlobalErrorReporting();
   }, []);
 
   return (

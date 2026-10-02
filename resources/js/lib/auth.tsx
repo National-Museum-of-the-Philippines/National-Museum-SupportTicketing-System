@@ -33,11 +33,19 @@ type AuthContextValue = {
   sessions: Partial<Record<PortalSlot, ApiUser>>;
   sessionReady: boolean;
   isAuthLoading: boolean;
-  login: (usernameOrEmail: string, password: string) => Promise<ApiUser | null>;
+  /** Rejects with TwoFactorRequiredError when the account needs an authenticator code. */
+  login: (usernameOrEmail: string, password: string, code?: string) => Promise<ApiUser | null>;
   logout: (slot?: PortalSlot) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+/** The password was accepted but the account also needs an authenticator code. */
+export class TwoFactorRequiredError extends Error {
+  constructor() {
+    super("Authentication code required");
+  }
+}
 
 function readSessionsMap(): Partial<Record<PortalSlot, ApiUser>> {
   const map: Partial<Record<PortalSlot, ApiUser>> = {};
@@ -104,11 +112,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [activeSlot]);
 
-  const login = useCallback(async (usernameOrEmail: string, password: string) => {
+  const login = useCallback(async (usernameOrEmail: string, password: string, code?: string) => {
     // Send username or email as-is; Laravel authenticates against MySQL `users`
     const loginId = usernameOrEmail.trim();
     try {
-      const { token, user: u } = await api.login(loginId, password);
+      const result = await api.login(loginId, password, code);
+      if ("twoFactorRequired" in result) throw new TwoFactorRequiredError();
+      const { token, user: u } = result;
       const slot = roleToSlot(u.role);
       const payload = { token, user: u };
 
@@ -142,6 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return u;
     } catch (err) {
+      if (err instanceof TwoFactorRequiredError) throw err;
       if (err instanceof ApiError && err.status === 401) return null;
       if (err instanceof ApiError) throw new Error(err.message);
       throw new Error(

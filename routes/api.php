@@ -8,6 +8,7 @@ use App\Http\Controllers\RbacController;
 use App\Http\Controllers\RecordsController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\TicketController;
+use App\Http\Controllers\ErrorMonitorController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,6 +25,11 @@ Route::prefix('auth')->group(function () {
         Route::get('/requester-profile', [AuthController::class, 'requesterProfile']);
         Route::patch('/profile', [AuthController::class, 'updateProfile']);
         Route::post('/change-password', [AuthController::class, 'changePassword']);
+        Route::get('/methods', [AuthController::class, 'authMethods']);
+        Route::post('/two-factor', [AuthController::class, 'requestTwoFactor']);
+        Route::post('/two-factor/confirm', [AuthController::class, 'confirmTwoFactor']);
+        Route::post('/two-factor/disable', [AuthController::class, 'disableTwoFactor']);
+        Route::post('/two-factor/recovery-codes', [AuthController::class, 'regenerateRecoveryCodes']);
     });
 });
 
@@ -55,8 +61,8 @@ Route::middleware(['jwt.auth', 'role:record_management'])->prefix('records')->gr
 });
 
 Route::middleware('jwt.auth')->prefix('tickets')->group(function () {
-    Route::post('/', [TicketController::class, 'store'])->middleware('role:user,admin');
-    Route::get('/mine', [TicketController::class, 'mine'])->middleware('role:user,admin');
+    Route::post('/', [TicketController::class, 'store'])->middleware('role:user,admin,record_management');
+    Route::get('/mine', [TicketController::class, 'mine'])->middleware('role:user,admin,record_management');
     Route::get('/for-review', [TicketController::class, 'forReview'])->middleware('role:user,admin');
     Route::get('/assigned/mine', [TicketController::class, 'assignedMine'])->middleware('role:user,admin');
     Route::get('/', [TicketController::class, 'index'])->middleware('role:admin');
@@ -66,10 +72,10 @@ Route::middleware('jwt.auth')->prefix('tickets')->group(function () {
     Route::post('/{id}/approve', [TicketController::class, 'approve'])->middleware('role:user,admin');
     Route::post('/{id}/reject', [TicketController::class, 'reject'])->middleware('role:user,admin');
     Route::post('/{id}/assign', [TicketController::class, 'assign'])->middleware('role:admin');
-    Route::post('/{id}/complete', [TicketController::class, 'complete'])->middleware('role:user,admin');
+    Route::post('/{id}/complete', [TicketController::class, 'complete'])->middleware('role:user,admin,record_management');
     Route::patch('/{id}/status', [TicketController::class, 'updateStatus'])->middleware('role:admin');
-    Route::post('/{id}/confirm', [TicketController::class, 'confirm'])->middleware('role:user,admin');
-    Route::post('/{id}/feedback', [TicketController::class, 'feedback'])->middleware('role:user,admin');
+    Route::post('/{id}/confirm', [TicketController::class, 'confirm'])->middleware('role:user,admin,record_management');
+    Route::post('/{id}/feedback', [TicketController::class, 'feedback'])->middleware('role:user,admin,record_management');
 });
 
 Route::middleware(['jwt.auth', 'role:admin,user'])->prefix('messages')->group(function () {
@@ -98,6 +104,25 @@ Route::middleware(['jwt.auth', 'role:admin'])->prefix('rbac')->group(function ()
     Route::put('/employees/{userId}/roles', [RbacController::class, 'syncRoles']);
 });
 
+// Clearing someone's second factor is Super Admin only (EnsureRole lets only super_admin through here).
+Route::middleware(['jwt.auth', 'role:super_admin'])
+    ->post('/rbac/employees/{userId}/mfa/reset', [RbacController::class, 'resetMfa']);
+
 Route::middleware(['jwt.auth', 'role:admin'])->prefix('super-admin')->group(function () {
     Route::get('/overview', [SuperAdminController::class, 'overview']);
+});
+
+// Browser errors from any signed-in portal user feed Error Monitoring.
+Route::middleware(['jwt.auth', 'throttle:30,1'])->post('/errors/client', [ErrorMonitorController::class, 'reportClient']);
+
+// Error Monitoring — Super Admin only (EnsureRole lets only super_admin through here).
+Route::middleware(['jwt.auth', 'role:super_admin'])->prefix('super-admin/errors')->group(function () {
+    Route::get('/', [ErrorMonitorController::class, 'index']);
+    Route::get('/summary', [ErrorMonitorController::class, 'summary']);
+    Route::post('/resolve-all', [ErrorMonitorController::class, 'resolveAll']);
+    Route::post('/purge', [ErrorMonitorController::class, 'purge']);
+    Route::get('/{id}', [ErrorMonitorController::class, 'show']);
+    Route::post('/{id}/resolve', [ErrorMonitorController::class, 'resolve']);
+    Route::post('/{id}/reopen', [ErrorMonitorController::class, 'reopen']);
+    Route::delete('/{id}', [ErrorMonitorController::class, 'destroy']);
 });

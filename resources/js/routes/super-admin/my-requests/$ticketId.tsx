@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MyRequestDetailPage } from "@/components/tickets/MyRequestDetailPage";
-import { ADMIN_MY_REQUESTS, ADMIN_MESSAGES } from "@/lib/navigation";
+import { SUPER_ADMIN_MY_REQUESTS, ADMIN_MESSAGES } from "@/lib/navigation";
 import { useAdminSession } from "@/lib/use-portal-session";
 
-export const Route = createFileRoute("/admin/my-requests/$ticketId")({
+export const Route = createFileRoute("/super-admin/my-requests/$ticketId")({
   component: Page,
 });
 
@@ -15,7 +15,7 @@ function Page() {
       slot="admin"
       ticketId={ticketId}
       canQuery={canQuery}
-      backPath={ADMIN_MY_REQUESTS}
+      backPath={SUPER_ADMIN_MY_REQUESTS}
       messagesPath={ADMIN_MESSAGES}
     />
   );

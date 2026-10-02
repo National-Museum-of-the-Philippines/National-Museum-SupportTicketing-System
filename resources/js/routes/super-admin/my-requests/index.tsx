@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MyRequestsListPage } from "@/components/tickets/MyRequestsListPage";
-import { ADMIN_MY_REQUESTS_SUBMIT } from "@/lib/navigation";
+import { SUPER_ADMIN_MY_REQUESTS_SUBMIT } from "@/lib/navigation";
 import { useAdminSession } from "@/lib/use-portal-session";
 
-export const Route = createFileRoute("/admin/my-requests/")({
+export const Route = createFileRoute("/super-admin/my-requests/")({
   component: Page,
 });
 
@@ -13,9 +13,8 @@ function Page() {
     <MyRequestsListPage
       slot="admin"
       canQuery={canQuery}
-      submitPath={ADMIN_MY_REQUESTS_SUBMIT}
-      detailPath={(ticketId) => `/admin/my-requests/${ticketId}`}
-      description="Your own support request submissions, separate from Request Management."
+      submitPath={SUPER_ADMIN_MY_REQUESTS_SUBMIT}
+      detailPath={(ticketId) => `/super-admin/my-requests/${ticketId}`}
     />
   );
 }

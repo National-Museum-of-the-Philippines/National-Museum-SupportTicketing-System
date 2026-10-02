@@ -2,14 +2,15 @@
 
 namespace App\Services;
 
-use App\Models\OrgUser;
+use App\Models\PamanaAuthUser;
 use App\Models\User;
 use App\Support\ApiException;
-use App\Support\Id;
 use Illuminate\Support\Facades\DB;
 
 class RbacService
 {
+    public function __construct(private AuthMethodService $authMethods) {}
+
     private const MODEL_TYPES = [
         'App\\Models\\User',
         'App\\Models\\Yii2User',
@@ -23,10 +24,10 @@ class RbacService
      */
     public function summary(): array
     {
-        $active = (int) OrgUser::query()->where('is_active', true)->count();
+        $active = (int) DB::connection('pamana_auth')->table('user')->where('status', 10)->count();
 
-        $withRoles = (int) DB::table('users as u')
-            ->where('u.is_active', true)
+        $withRoles = (int) $this->authUsersQuery()
+            ->where('u.status', 10)
             ->whereExists(function ($q) {
                 $q->select(DB::raw(1))
                     ->from('model_has_roles as mhr')
@@ -227,8 +228,8 @@ class RbacService
         $page = max(1, (int) ($filters['page'] ?? 1));
         $perPage = min(100, max(1, (int) ($filters['perPage'] ?? 20)));
 
-        $base = DB::table('users as u')
-            ->where('u.is_active', true);
+        $base = $this->authUsersQuery()
+            ->where('u.status', 10);
 
         if ($search !== '') {
             $like = '%'.mb_strtolower($search).'%';
@@ -275,6 +276,7 @@ class RbacService
 
         $ids = $rows->pluck('id')->map(fn ($id) => (int) $id)->all();
         $rolesByUser = $this->rolesForUserIds($ids);
+        $mfaIds = $this->authMethods->enabledAccountIds($ids);
         $namesByUser = $this->pamanaNamesForUsernames(
             $rows->pluck('username')->filter()->map(fn ($u) => (string) $u)->all(),
         );
@@ -296,6 +298,7 @@ class RbacService
                 'username' => $username,
                 'roles' => $roles,
                 'hasRoles' => $roles !== [],
+                'mfaEnabled' => in_array($id, $mfaIds, true),
             ];
         }
 
@@ -319,15 +322,15 @@ class RbacService
     }
 
     /**
-     * Replace assigned Spatie roles for an org user and sync ticketing portal role.
+     * Replace assigned Spatie roles for a pamana_auth account and sync ticketing portal role.
      *
      * @param  list<int|string>  $roleIds
      * @return array<string, mixed>
      */
     public function syncRoles(int $orgUserId, array $roleIds): array
     {
-        $org = OrgUser::query()->find($orgUserId);
-        if (! $org || ! $org->is_active) {
+        $org = PamanaAuthUser::findByAuthId($orgUserId);
+        if (! $org || ! $org->isActive()) {
             throw new ApiException(404, 'Employee not found');
         }
 
@@ -352,7 +355,6 @@ class RbacService
             }
         });
 
-        $org->refresh();
         $this->syncTicketingPortalRole($org);
 
         $roles = $this->rolesForUserIds([$orgUserId])[$orgUserId] ?? [];
@@ -366,26 +368,28 @@ class RbacService
             'username' => (string) ($org->username ?? ''),
             'roles' => $roles,
             'hasRoles' => $roles !== [],
+            'mfaEnabled' => $this->authMethods->requiresTwoFactor($org),
         ];
     }
 
-    private function syncTicketingPortalRole(OrgUser $org): void
+    public function resetMfa(int $orgUserId): void
+    {
+        $org = PamanaAuthUser::findByAuthId($orgUserId);
+        if (! $org) {
+            throw new ApiException(404, 'Employee not found');
+        }
+
+        $this->authMethods->disableTwoFactor($org);
+    }
+
+    private function syncTicketingPortalRole(PamanaAuthUser $org): void
     {
         $email = strtolower((string) $org->email);
         $user = User::query()->where('email', $email)->first();
         $mapped = $org->ticketingRole();
 
         if (! $user) {
-            User::create([
-                'id' => Id::newId(),
-                'email' => $email,
-                'password_hash' => (string) ($org->password ?: ''),
-                'name' => $org->displayName(),
-                'role' => $mapped,
-                'division' => '',
-                'designation' => '',
-                'active' => true,
-            ]);
+            User::profileForAuthAccount($org, ['division' => '']);
 
             return;
         }
@@ -450,11 +454,13 @@ class RbacService
 
         try {
             $placeholders = implode(',', array_fill(0, count($usernames), '?'));
-            $rows = DB::connection('pamana')->select(
+            $employeesDb = $this->employeesDatabase();
+            $rows = DB::connection('pamana_auth')->select(
                 "SELECT LOWER(pu.username) AS username_key,
                         TRIM(CONCAT_WS(' ', si.first_name, NULLIF(si.middle_name, ''), si.last_name)) AS full_name
-                 FROM user pu
-                 INNER JOIN staffinformation si ON si.user_id = CAST(pu.id AS CHAR)
+                 FROM `user` pu
+                 INNER JOIN `{$employeesDb}`.staffinformation si
+                    ON si.user_id = CAST(pu.id AS CHAR)
                  WHERE LOWER(pu.username) IN ({$placeholders})",
                 array_map('strtolower', $usernames),
             );
@@ -472,5 +478,31 @@ class RbacService
         }
 
         return $map;
+    }
+
+    /**
+     * Active login rows from pamana_auth.user, queried on the ticketing connection
+     * so role filters can join model_has_roles. Read-only.
+     */
+    private function authUsersQuery(): \Illuminate\Database\Query\Builder
+    {
+        $db = $this->safeDbName((string) config('database.connections.pamana_auth.database', 'pamana_auth'));
+
+        return DB::table(DB::raw("`{$db}`.`user` as u"));
+    }
+
+    private function employeesDatabase(): string
+    {
+        return $this->safeDbName((string) config('database.connections.pamana.database', 'pamana_employees_new'));
+    }
+
+    private function safeDbName(string $name): string
+    {
+        $name = preg_replace('/[^A-Za-z0-9_]/', '', $name) ?? '';
+        if ($name === '') {
+            throw new \RuntimeException('Invalid database name');
+        }
+
+        return $name;
     }
 }

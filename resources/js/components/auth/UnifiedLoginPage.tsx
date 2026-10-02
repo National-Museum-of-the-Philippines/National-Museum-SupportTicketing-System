@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Eye, EyeOff, Loader2, Lock, ShieldCheck, User } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, KeyRound, Loader2, Lock, ShieldCheck, User } from "lucide-react";
 import { NmpLogo } from "@/components/layout/NmpLogo";
-import { useAuth } from "@/lib/auth";
+import { TwoFactorRequiredError, useAuth } from "@/lib/auth";
 import { dashboardForRole } from "@/lib/navigation";
 import { useApiHealth } from "@/lib/use-api-health";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,8 @@ export function UnifiedLoginPage() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [needsCode, setNeedsCode] = useState(false);
+  const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const apiHealth = useApiHealth();
@@ -38,9 +40,11 @@ export function UnifiedLoginPage() {
     setError(null);
     setIsSubmitting(true);
     try {
-      const loggedInUser = await login(username, password);
+      const loggedInUser = await login(username, password, needsCode ? code.trim() : undefined);
       if (!loggedInUser) {
-        setError("Incorrect email or password.");
+        setError(
+          needsCode ? "The authentication code is incorrect." : "Incorrect email or password.",
+        );
         return;
       }
 
@@ -53,6 +57,10 @@ export function UnifiedLoginPage() {
 
       void navigate({ to: dashboardForRole(loggedInUser.role), replace: true });
     } catch (err) {
+      if (err instanceof TwoFactorRequiredError) {
+        setNeedsCode(true);
+        return;
+      }
       setError(err instanceof Error ? err.message : "Sign-in failed.");
     } finally {
       setIsSubmitting(false);
@@ -117,7 +125,11 @@ export function UnifiedLoginPage() {
                     autoFocus
                     placeholder="Enter your username"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => {
+                      setUsername(e.target.value);
+                      setNeedsCode(false);
+                      setCode("");
+                    }}
                     disabled={isSubmitting}
                     className={cn(
                       "h-11 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-800 outline-none transition",
@@ -172,6 +184,39 @@ export function UnifiedLoginPage() {
                   </button>
                 </div>
               </div>
+
+              {needsCode ? (
+                <div className="space-y-1.5">
+                  <label htmlFor="code" className="block text-sm font-semibold text-slate-700">
+                    Authentication code
+                  </label>
+                  <div className="relative">
+                    <KeyRound
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                      aria-hidden
+                    />
+                    <input
+                      id="code"
+                      name="code"
+                      autoComplete="one-time-code"
+                      autoFocus
+                      placeholder="6-digit code or recovery code"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      disabled={isSubmitting}
+                      className={cn(
+                        "h-11 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-800 outline-none transition",
+                        "placeholder:text-slate-400 focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20",
+                        "disabled:cursor-not-allowed disabled:opacity-60",
+                      )}
+                      required
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Enter the code from your authenticator app.
+                  </p>
+                </div>
+              ) : null}
 
               <div className="flex items-center justify-between gap-3 pt-0.5">
                 <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">

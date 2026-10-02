@@ -27,6 +27,8 @@ import {
   CLIENT_MESSAGES,
   CLIENT_SUBMIT,
   RECORDS_MESSAGES,
+  RECORDS_MY_REQUESTS_SUBMIT,
+  SUPER_ADMIN_MY_REQUESTS_SUBMIT,
   isAdminRole,
   isClientRole,
   isRecordsRole,
@@ -41,7 +43,11 @@ function isFormFillPath(pathname: string) {
     pathname === ADMIN_MY_REQUESTS_SUBMIT ||
     pathname.startsWith(`${ADMIN_MY_REQUESTS_SUBMIT}/`) ||
     pathname === CLIENT_SUBMIT ||
-    pathname.startsWith(`${CLIENT_SUBMIT}/`)
+    pathname.startsWith(`${CLIENT_SUBMIT}/`) ||
+    pathname === RECORDS_MY_REQUESTS_SUBMIT ||
+    pathname.startsWith(`${RECORDS_MY_REQUESTS_SUBMIT}/`) ||
+    pathname === SUPER_ADMIN_MY_REQUESTS_SUBMIT ||
+    pathname.startsWith(`${SUPER_ADMIN_MY_REQUESTS_SUBMIT}/`)
   );
 }
 

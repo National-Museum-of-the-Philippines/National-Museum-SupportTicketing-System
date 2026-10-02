@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
@@ -38,6 +39,17 @@ export default defineConfig(({ mode }) => {
     tailwindcss(),
     tsConfigPaths({ projects: ["./tsconfig.json"] }),
     viteReact(),
+    // nginx serves dist/ and routes /support/* (the API, see VITE_API_URL) to
+    // dist/support/index.php. The build empties dist/, so relink Laravel's public/.
+    {
+      name: "link-laravel-public",
+      apply: "build" as const,
+      closeBundle() {
+        const link = path.join(root, "dist", "support");
+        fs.rmSync(link, { recursive: true, force: true });
+        fs.symlinkSync("../public", link);
+      },
+    },
   ];
 
   return {

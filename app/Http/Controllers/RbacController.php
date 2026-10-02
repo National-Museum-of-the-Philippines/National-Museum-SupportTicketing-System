@@ -106,4 +106,12 @@ class RbacController extends Controller
 
         return response()->json(['employee' => $employee]);
     }
+
+    /** Clear an employee's MFA enrollment, e.g. after a lost phone. */
+    public function resetMfa(int $userId): JsonResponse
+    {
+        $this->rbac->resetMfa($userId);
+
+        return response()->json(['ok' => true]);
+    }
 }

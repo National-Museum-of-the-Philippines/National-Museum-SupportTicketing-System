@@ -377,7 +377,7 @@ export function ClientSubmitForm({
                     <span className="text-muted-foreground">First name:</span> {profileSummary.first}
                   </p>
                   <p>
-                    <span className="text-muted-foreground">Middle initial:</span>{" "}
+                    <span className="text-muted-foreground">Middle name:</span>{" "}
                     {profileSummary.middle}
                   </p>
                   <p>
@@ -389,8 +389,8 @@ export function ClientSubmitForm({
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
                   {profileSummary.fromPamana
-                    ? "Filled from pamana_employees_new.staffinformations + staffs for your login."
-                    : "No PAMANA employee record found for this login. Sign in with your museum username (e.g. resty.morancil) so requestor details auto-fill on the TA form."}
+                    ? "Filled from your museum account and placed on the form when you submit."
+                    : "No employee record was found for this login. Sign in with your museum username so requestor details can auto-fill."}
                 </p>
               </FlowNotice>
             ) : null}

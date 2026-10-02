@@ -1,8 +1,12 @@
 import type {
   ActivityRecord,
   ApiUser,
+  AuthMethodsStatus,
   ConversationMessageRecord,
   ConversationRecord,
+  ErrorLogListResponse,
+  ErrorLogRecord,
+  ErrorLogSummary,
   FormRecord,
   FormReviewDecision,
   MentionRecord,
@@ -16,6 +20,7 @@ import type {
   RbacSummary,
   TicketRecord,
   TicketStatus,
+  TwoFactorSetup,
   UploadedFileRecord,
 } from "./types";
 import { apiBase } from "@/lib/api-base";
@@ -132,10 +137,11 @@ export async function apiFetchBlob(
 }
 
 export const api = {
-  login: (email: string, password: string) =>
-    apiFetch<{ token: string; user: ApiUser }>("/api/auth/login", {
+  /** `twoFactorRequired` comes back (without a token) when the account needs an authenticator code. */
+  login: (email: string, password: string, code?: string) =>
+    apiFetch<{ token: string; user: ApiUser } | { twoFactorRequired: true }>("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, code: code || undefined }),
     }),
 
   me: (slot: PortalSlot) => apiFetch<{ user: ApiUser }>("/api/auth/me", undefined, slot),
@@ -166,6 +172,32 @@ export const api = {
     apiFetch<{ ok: boolean }>("/api/auth/change-password", {
       method: "POST",
       body: JSON.stringify(body),
+    }),
+
+  authMethods: () => apiFetch<AuthMethodsStatus>("/api/auth/methods"),
+
+  requestTwoFactor: (password: string) =>
+    apiFetch<TwoFactorSetup>("/api/auth/two-factor", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
+
+  confirmTwoFactor: (code: string) =>
+    apiFetch<AuthMethodsStatus>("/api/auth/two-factor/confirm", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+
+  disableTwoFactor: (password: string) =>
+    apiFetch<AuthMethodsStatus>("/api/auth/two-factor/disable", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
+
+  regenerateRecoveryCodes: (password: string) =>
+    apiFetch<{ recoveryCodes: string[] }>("/api/auth/two-factor/recovery-codes", {
+      method: "POST",
+      body: JSON.stringify({ password }),
     }),
 
   // Forms (Admin)
@@ -432,12 +464,58 @@ export const api = {
       "admin",
     );
   },
+  rbacResetMfa: (userId: number) =>
+    apiFetch<{ ok: boolean }>(`/api/rbac/employees/${userId}/mfa/reset`, { method: "POST" }, "admin"),
   rbacSyncRoles: (userId: number, roleIds: number[]) =>
     apiFetch<{ employee: RbacEmployee }>(
       `/api/rbac/employees/${userId}/roles`,
       { method: "PUT", body: JSON.stringify({ roleIds }) },
       "admin",
     ),
+
+  // Error Monitoring (Super Admin)
+  errorLogs: (params?: Record<string, string>) => {
+    const q = new URLSearchParams(params).toString();
+    return apiFetch<ErrorLogListResponse>(
+      `/api/super-admin/errors${q ? `?${q}` : ""}`,
+      undefined,
+      "admin",
+    );
+  },
+  errorLogSummary: () =>
+    apiFetch<ErrorLogSummary>("/api/super-admin/errors/summary", undefined, "admin"),
+  errorLog: (id: string) =>
+    apiFetch<{ item: ErrorLogRecord }>(`/api/super-admin/errors/${id}`, undefined, "admin"),
+  resolveErrorLog: (id: string) =>
+    apiFetch<{ item: ErrorLogRecord }>(
+      `/api/super-admin/errors/${id}/resolve`,
+      { method: "POST" },
+      "admin",
+    ),
+  reopenErrorLog: (id: string) =>
+    apiFetch<{ item: ErrorLogRecord }>(
+      `/api/super-admin/errors/${id}/reopen`,
+      { method: "POST" },
+      "admin",
+    ),
+  deleteErrorLog: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/super-admin/errors/${id}`, { method: "DELETE" }, "admin"),
+  resolveAllErrorLogs: () =>
+    apiFetch<{ updated: number }>("/api/super-admin/errors/resolve-all", { method: "POST" }, "admin"),
+  purgeErrorLogs: (scope: "resolved" | "all") =>
+    apiFetch<{ removed: number }>(
+      "/api/super-admin/errors/purge",
+      { method: "POST", body: JSON.stringify({ scope }) },
+      "admin",
+    ),
+  /** Browser-side error report; uses the token of whichever portal is open. */
+  reportClientError: (body: {
+    message: string;
+    stack?: string | null;
+    url?: string;
+    kind?: string;
+    component?: string;
+  }) => apiFetch<{ ok: boolean }>("/api/errors/client", { method: "POST", body: JSON.stringify(body) }),
 
   uploadFile: (file: File) => {
     const fd = new FormData();

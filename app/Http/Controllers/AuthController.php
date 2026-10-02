@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\OrgUser;
+use App\Models\PamanaAuthUser;
 use App\Models\User;
+use App\Services\AuthMethodService;
 use App\Services\JwtService;
 use App\Services\PamanaEmployeeService;
 use App\Support\ApiException;
-use App\Support\Id;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
@@ -18,6 +17,7 @@ class AuthController extends Controller
     public function __construct(
         private JwtService $jwt,
         private PamanaEmployeeService $pamana,
+        private AuthMethodService $authMethods,
     ) {}
 
     public function login(Request $request): JsonResponse
@@ -25,19 +25,38 @@ class AuthController extends Controller
         $validator = Validator::make($request->all(), [
             'email' => 'required|string|min:1',
             'password' => 'required|string|min:1',
+            'code' => 'nullable|string|max:32',
         ]);
         if ($validator->fails()) {
             throw new ApiException(422, $validator->errors()->first());
         }
 
+        // Accounts come from pamana_auth.user; other auth methods from nmp_ticketing.users.
         $login = trim((string) $request->input('email'));
         $password = (string) $request->input('password');
-        $org = $this->findOrgUser($login);
-        if (! $org || ! $org->is_active || ! $org->verifyPassword($password)) {
+        $account = PamanaAuthUser::attempt($login, $password);
+        if (! $account) {
+            throw new ApiException(401, 'Invalid credentials');
+        }
+        if ($account->isSecurityPersonnel()) {
+            throw new ApiException(403, 'Security personnel accounts are not allowed to sign in to this system.');
+        }
+
+        if ($this->authMethods->requiresTwoFactor($account)) {
+            $code = trim((string) $request->input('code', ''));
+            if ($code === '') {
+                return response()->json(['twoFactorRequired' => true]);
+            }
+            if (! $this->authMethods->verifyLoginCode($account, $code)) {
+                throw new ApiException(401, 'The authentication code is incorrect');
+            }
+        }
+
+        $user = User::profileForAuthAccount($account);
+        if (! $user) {
             throw new ApiException(401, 'Invalid credentials');
         }
 
-        $user = $this->resolveTicketingUser($org);
         $employee = $this->pamana->findForTicketingUser($user);
         $this->pamana->syncTicketingUser($user, $employee);
 
@@ -61,7 +80,8 @@ class AuthController extends Controller
     }
 
     /**
-     * PAMANA-backed requestor fields for TA form auto-fill / preview.
+     * Requestor fields for TA form auto-fill. Identity is pamana_auth.user;
+     * name, division, and designation are read from pamana_employees_new.
      */
     public function requesterProfile(Request $request): JsonResponse
     {
@@ -145,14 +165,8 @@ class AuthController extends Controller
             throw new ApiException(404, 'User not found');
         }
 
-        $org = OrgUser::query()
-            ->whereRaw('LOWER(email) = ?', [strtolower($user->email)])
-            ->first();
-
         $current = (string) $request->input('currentPassword');
-        $orgOk = $org && $org->verifyPassword($current);
-        $profileOk = Hash::check($current, $user->password_hash);
-        if (! $orgOk && ! $profileOk) {
+        if (! $user->passwordMatches($current)) {
             throw new ApiException(400, 'Current password is incorrect');
         }
 
@@ -160,74 +174,78 @@ class AuthController extends Controller
             throw new ApiException(400, 'New password must be different from the current password');
         }
 
-        $newHash = Hash::make((string) $request->input('newPassword'));
-        $user->password_hash = $newHash;
+        $user->setPassword((string) $request->input('newPassword'));
         $user->save();
-
-        if ($org) {
-            $org->password = $newHash;
-            $org->save();
-        }
+        $user->syncPamanaPasswordHash();
 
         return response()->json(['ok' => true]);
     }
 
-    private function findOrgUser(string $login): ?OrgUser
+    public function authMethods(Request $request): JsonResponse
     {
-        $login = trim($login);
-        if ($login === '') {
-            return null;
-        }
-
-        $lower = strtolower($login);
-        $local = str_contains($lower, '@') ? strstr($lower, '@', true) : $lower;
-        $local = $local !== false ? $local : $lower;
-
-        return OrgUser::query()
-            ->where('is_active', true)
-            ->where(function ($q) use ($lower, $local) {
-                $q->whereRaw('LOWER(email) = ?', [$lower])
-                    ->orWhereRaw('LOWER(username) = ?', [$local])
-                    ->orWhereRaw('LOWER(username) = ?', [$lower]);
-            })
-            ->first();
+        return response()->json($this->authMethods->status($this->authAccount($request)));
     }
 
     /**
-     * Ticketing rows live in `users_` (CHAR ids / FKs). Ensure a profile exists for this org login.
+     * User requests an authenticator app. The secret and recovery codes are stored on
+     * nmp_ticketing.users and shown once; sign-in asks for a code after confirmation.
      */
-    private function resolveTicketingUser(OrgUser $org): User
+    public function requestTwoFactor(Request $request): JsonResponse
     {
-        $email = strtolower((string) $org->email);
-        $user = User::query()->where('email', $email)->first();
-        $mappedRole = $org->ticketingRole();
+        $account = $this->authAccount($request);
+        $this->requireCurrentPassword($request, $account);
 
-        if ($user) {
-            if (! $user->active) {
-                throw new ApiException(401, 'Invalid credentials');
-            }
-            // Keep records role if already set; otherwise refresh from org Spatie roles.
-            if ($user->role !== 'record_management' && $mappedRole !== 'user') {
-                $user->role = $mappedRole;
-            }
-            if (trim((string) $user->name) === '') {
-                $user->name = $org->displayName();
-            }
-            $user->password_hash = (string) $org->password;
-            $user->save();
+        return response()->json($this->authMethods->requestTwoFactor($account));
+    }
 
-            return $user;
+    public function confirmTwoFactor(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'code' => 'required|string|max:32',
+        ]);
+        if ($validator->fails()) {
+            throw new ApiException(422, $validator->errors()->first());
         }
 
-        return User::create([
-            'id' => Id::newId(),
-            'email' => $email,
-            'password_hash' => (string) $org->password,
-            'name' => $org->displayName(),
-            'role' => $mappedRole,
-            'division' => 'ICT',
-            'designation' => '',
-            'active' => true,
+        $account = $this->authAccount($request);
+        $this->authMethods->confirmTwoFactor($account, (string) $request->input('code'));
+
+        return response()->json($this->authMethods->status($account));
+    }
+
+    public function disableTwoFactor(Request $request): JsonResponse
+    {
+        $account = $this->authAccount($request);
+        $this->requireCurrentPassword($request, $account);
+        $this->authMethods->disableTwoFactor($account);
+
+        return response()->json($this->authMethods->status($account));
+    }
+
+    public function regenerateRecoveryCodes(Request $request): JsonResponse
+    {
+        $account = $this->authAccount($request);
+        $this->requireCurrentPassword($request, $account);
+
+        return response()->json([
+            'recoveryCodes' => $this->authMethods->regenerateRecoveryCodes($account),
         ]);
+    }
+
+    private function authAccount(Request $request): PamanaAuthUser
+    {
+        $account = PamanaAuthUser::findByLogin($this->authUser($request)->email);
+        if (! $account || ! $account->isActive()) {
+            throw new ApiException(404, 'Login account not found');
+        }
+
+        return $account;
+    }
+
+    private function requireCurrentPassword(Request $request, PamanaAuthUser $account): void
+    {
+        if (! $account->passwordMatches((string) $request->input('password', ''))) {
+            throw new ApiException(400, 'Password is incorrect');
+        }
     }
 }

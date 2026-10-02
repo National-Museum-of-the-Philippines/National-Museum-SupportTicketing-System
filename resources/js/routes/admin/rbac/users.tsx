@@ -53,7 +53,8 @@ export const Route = createFileRoute("/admin/rbac/users")({
 
 export function RbacUsersPage() {
   const qc = useQueryClient();
-  const { canQuery } = useAdminSession();
+  const { canQuery, user } = useAdminSession();
+  const isSuperAdmin = user?.role === "super_admin";
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -116,6 +117,18 @@ export function RbacUsersPage() {
     },
     onError: (err: Error) => {
       toast.error(err instanceof ApiError ? err.message : "Could not update roles.");
+    },
+  });
+
+  const resetMfaMutation = useMutation({
+    mutationFn: (userId: number) => api.rbacResetMfa(userId),
+    onSuccess: () => {
+      toast.success("MFA reset — the employee can sign in with their password and enroll again");
+      setDialogEmployee((prev) => (prev ? { ...prev, mfaEnabled: false } : prev));
+      void qc.invalidateQueries({ queryKey: ["rbac-employees"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err instanceof ApiError ? err.message : "Could not reset MFA.");
     },
   });
 
@@ -289,6 +302,11 @@ export function RbacUsersPage() {
                         <span className="inline-flex max-w-full truncate rounded-full bg-slate-100 px-2.5 py-1 font-mono text-xs text-slate-700">
                           {employee.username || "—"}
                         </span>
+                        {employee.mfaEnabled ? (
+                          <span className="ml-1.5 inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+                            MFA
+                          </span>
+                        ) : null}
                       </td>
                       <td>
                         {employee.hasRoles ? (
@@ -409,6 +427,25 @@ export function RbacUsersPage() {
                   })}
                 </div>
               </div>
+              {dialogEmployee.mfaEnabled && isSuperAdmin ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border/80 px-3 py-2">
+                  <p className="text-sm text-muted-foreground">
+                    Multi-factor authentication is enabled.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={resetMfaMutation.isPending}
+                    onClick={() => {
+                      if (window.confirm(`Reset MFA for ${dialogEmployee.name}?`)) {
+                        resetMfaMutation.mutate(dialogEmployee.id);
+                      }
+                    }}
+                  >
+                    {resetMfaMutation.isPending ? "Resetting…" : "Reset MFA"}
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : null}
           <DialogFooter>

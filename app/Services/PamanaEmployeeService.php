@@ -2,16 +2,17 @@
 
 namespace App\Services;
 
-use App\Models\OrgUser;
+use App\Models\PamanaAuthUser;
 use App\Models\User;
-use App\Support\Id;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Requester profile from pamana_employees_new for TA form auto-fill.
+ * Requester profile for TA form auto-fill.
  *
+ * Login identity is read from pamana_auth.user (no schema changes).
+ * Profile fields are read from pamana_employees_new:
  *  {{prof_division}}    = plantilla/staff_role section_id → sections.section_name
  *  {{prof_first}}       = staffs.first_name
  *  {{prof_middle}}      = staffs.middle_name
@@ -19,7 +20,7 @@ use Throwable;
  *  {{prof_email}}       = staffs.secondary_email ?? staffs.email
  *  {{prof_designation}} = item_numbers → positions.position_name
  *
- * Profile fields are read from staffs, staff_appointment, item_numbers, positions,
+ * Profile fields come from staffs, staff_appointment, item_numbers, positions,
  * sections, and staff_role rather than the `staffinformation` view.
  */
 class PamanaEmployeeService
@@ -39,26 +40,13 @@ class PamanaEmployeeService
     public function findForTicketingUser(User $user): ?array
     {
         $email = strtolower(trim((string) $user->email));
-        $org = OrgUser::query()
-            ->whereRaw('LOWER(email) = ?', [$email])
-            ->first();
+        $account = $this->authAccountForTicketingUser($user);
 
-        // Fallback: museum logins sometimes store a different email than users_.email
-        // but share the username local-part (e.g. resty.morancil).
-        if (! $org && str_contains($email, '@')) {
-            $local = strstr($email, '@', true) ?: '';
-            if ($local !== '') {
-                $org = OrgUser::query()
-                    ->whereRaw('LOWER(username) = ?', [strtolower($local)])
-                    ->first();
-            }
-        }
-
-        if ($org) {
-            $hit = $this->findForOrgUser($org);
+        if ($account) {
+            $hit = $this->findForAuthUser($account);
             if ($hit) {
                 if ($hit['email'] === '') {
-                    $hit['email'] = (string) ($org->email ?: $user->email);
+                    $hit['email'] = (string) ($account->email ?: $user->email);
                 }
 
                 return $hit;
@@ -85,26 +73,13 @@ class PamanaEmployeeService
      *   name: string
      * }|null
      */
-    public function findForOrgUser(OrgUser $org): ?array
+    public function findForAuthUser(PamanaAuthUser $account): ?array
     {
-        // Primary link: nmp_ticketing.users.id === pamana staffs.user_id
-        // (most employees are not in the small pamana `user` login table).
-        $hit = $this->loadByStaffUserId((string) $org->id);
-        if ($hit) {
-            return $this->withLoginEmailFallback($hit, (string) $org->email);
-        }
+        // pamana staffs.user_id === pamana_auth.user.id
+        $hit = $this->loadByStaffUserId((string) $account->id)
+            ?? $this->lookupByEmailOnly((string) $account->email);
 
-        $pamanaUserId = $this->resolvePamanaUserId($org);
-        if ($pamanaUserId !== null && $pamanaUserId !== (string) $org->id) {
-            $hit = $this->loadByStaffUserId($pamanaUserId);
-            if ($hit) {
-                return $this->withLoginEmailFallback($hit, (string) $org->email);
-            }
-        }
-
-        $byEmail = $this->lookupByEmailOnly((string) $org->email);
-
-        return $byEmail ? $this->withLoginEmailFallback($byEmail, (string) $org->email) : null;
+        return $hit ? $this->withLoginEmailFallback($hit, (string) $account->email) : null;
     }
 
     /**
@@ -155,20 +130,11 @@ class PamanaEmployeeService
         $username = trim($username);
         $email = strtolower(trim($email));
 
-        if ($username !== '') {
-            try {
-                $pu = DB::connection('pamana')->selectOne(
-                    'SELECT id FROM `user` WHERE LOWER(username) = ? LIMIT 1',
-                    [strtolower($username)],
-                );
-                if ($pu) {
-                    $hit = $this->loadByStaffUserId((string) $pu->id);
-                    if ($hit) {
-                        return $hit;
-                    }
-                }
-            } catch (Throwable $e) {
-                Log::warning('Pamana username lookup failed', ['error' => $e->getMessage()]);
+        $account = PamanaAuthUser::findByUsername($username);
+        if ($account) {
+            $hit = $this->loadByStaffUserId((string) $account->id);
+            if ($hit) {
+                return $hit;
             }
         }
 
@@ -176,82 +142,13 @@ class PamanaEmployeeService
     }
 
     /**
-     * Resolve PAMANA staffs.user_id for an org login account.
-     * Prefer username identity — never bind seed/demo org ids to unrelated staff rows.
+     * pamana_auth.user account behind a ticketing profile: matched by email, then by
+     * the email local-part as username (museum logins sometimes store a different
+     * email than users_.email, e.g. resty.morancil).
      */
-    private function resolvePamanaUserId(OrgUser $org): ?string
+    private function authAccountForTicketingUser(User $user): ?PamanaAuthUser
     {
-        $orgId = (string) $org->id;
-        $username = strtolower(trim((string) ($org->username ?? '')));
-        $email = strtolower(trim((string) $org->email));
-
-        try {
-            if ($username !== '') {
-                $byUsername = DB::connection('pamana')->selectOne(
-                    'SELECT id FROM `user` WHERE LOWER(username) = ? LIMIT 1',
-                    [$username],
-                );
-                if ($byUsername) {
-                    return (string) $byUsername->id;
-                }
-            }
-
-            if ($email !== '') {
-                $byEmail = DB::connection('pamana')->selectOne(
-                    'SELECT id FROM `user` WHERE LOWER(email) = ? LIMIT 1',
-                    [$email],
-                );
-                if ($byEmail) {
-                    return (string) $byEmail->id;
-                }
-            }
-
-            // Same numeric id only when PAMANA username matches org username (true shared identity).
-            if ($username !== '') {
-                $byId = DB::connection('pamana')->selectOne(
-                    'SELECT id FROM `user` WHERE id = ? AND LOWER(username) = ? LIMIT 1',
-                    [$orgId, $username],
-                );
-                if ($byId) {
-                    return (string) $byId->id;
-                }
-            }
-        } catch (Throwable $e) {
-            Log::warning('Pamana resolve user id failed', ['error' => $e->getMessage()]);
-        }
-
-        // Most museum staff exist in `staffs` (user_id = org users.id) but not in PAMANA `user`.
-        try {
-            $staffByOrgId = DB::connection('pamana')->selectOne(
-                "SELECT CAST(user_id AS CHAR) AS user_id
-                 FROM staffs
-                 WHERE CAST(user_id AS CHAR) COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
-                 LIMIT 1",
-                [$orgId],
-            );
-            $staffId = trim((string) ($staffByOrgId->user_id ?? ''));
-            if ($staffId !== '') {
-                return $staffId;
-            }
-
-            if ($email !== '') {
-                $staffByEmail = DB::connection('pamana')->selectOne(
-                    "SELECT CAST(user_id AS CHAR) AS user_id
-                     FROM staffs
-                     WHERE LOWER(TRIM(email)) = ? OR LOWER(TRIM(IFNULL(secondary_email, ''))) = ?
-                     LIMIT 1",
-                    [$email, $email],
-                );
-                $staffId = trim((string) ($staffByEmail->user_id ?? ''));
-                if ($staffId !== '') {
-                    return $staffId;
-                }
-            }
-        } catch (Throwable $e) {
-            Log::warning('Pamana staffs user_id fallback failed', ['error' => $e->getMessage()]);
-        }
-
-        return null;
+        return PamanaAuthUser::findByLogin((string) $user->email);
     }
 
     /**
@@ -589,8 +486,8 @@ class PamanaEmployeeService
     }
 
     /**
-     * Admin for the ticketing system: `users_` role, or the org (Spatie) role that
-     * login applies to `users_` on the next sign-in.
+     * Admin for the ticketing system: `users_` role, or the Spatie role on the
+     * pamana_auth account that login applies to `users_` on the next sign-in.
      */
     public function isAdminUser(?User $user): bool
     {
@@ -603,47 +500,40 @@ class PamanaEmployeeService
         if ($user->role === 'record_management') {
             return false;
         }
-        $org = OrgUser::query()->whereRaw('LOWER(email) = ?', [strtolower(trim((string) $user->email))])->first();
+        $account = $this->authAccountForTicketingUser($user);
 
-        return $org !== null && in_array($org->ticketingRole(), ['admin', 'super_admin'], true);
+        return $account !== null && in_array($account->ticketingRole(), ['admin', 'super_admin'], true);
     }
 
     private function pamanaStaffUserIdForTicketingUser(User $user): ?string
     {
-        $email = strtolower(trim((string) $user->email));
-        $org = OrgUser::query()
-            ->whereRaw('LOWER(email) = ?', [$email])
-            ->first();
-
-        if (! $org && str_contains($email, '@')) {
-            $local = strstr($email, '@', true) ?: '';
-            if ($local !== '') {
-                $org = OrgUser::query()
-                    ->whereRaw('LOWER(username) = ?', [strtolower($local)])
-                    ->first();
-            }
+        $account = $this->authAccountForTicketingUser($user);
+        if ($account) {
+            return (string) $account->id;
         }
 
-        if ($org) {
-            $id = $this->resolvePamanaUserId($org);
-            if ($id !== null && $id !== '') {
-                return $id;
-            }
+        // No login account matched: fall back to the staff row carrying this email.
+        $email = strtolower(trim((string) $user->email));
+        if ($email === '') {
+            return null;
         }
 
         try {
-            $byEmail = DB::connection('pamana')->selectOne(
-                'SELECT id FROM `user` WHERE LOWER(email) = ? LIMIT 1',
-                [$email],
+            $staffByEmail = DB::connection('pamana')->selectOne(
+                "SELECT CAST(user_id AS CHAR) AS user_id
+                 FROM staffs
+                 WHERE LOWER(TRIM(email)) = ? OR LOWER(TRIM(IFNULL(secondary_email, ''))) = ?
+                 LIMIT 1",
+                [$email, $email],
             );
-            if ($byEmail) {
-                return (string) $byEmail->id;
-            }
+            $staffId = trim((string) ($staffByEmail->user_id ?? ''));
+
+            return $staffId !== '' ? $staffId : null;
         } catch (Throwable $e) {
             Log::warning('Pamana staff user id lookup failed', ['error' => $e->getMessage()]);
-        }
 
-        return null;
+            return null;
+        }
     }
 
     /** Logged-in admin's section from pamana `staffinformation.section_id`. */
@@ -774,46 +664,17 @@ class PamanaEmployeeService
 
         $profile = $this->loadByStaffUserId($pamanaStaffUserId);
 
-        $org = OrgUser::query()->find((int) $pamanaStaffUserId);
-        if (! $org) {
-            try {
-                $login = DB::connection('pamana')->selectOne(
-                    'SELECT username FROM `user` WHERE id = ? LIMIT 1',
-                    [$pamanaStaffUserId],
-                );
-            } catch (Throwable) {
-                $login = null;
-            }
-            $username = strtolower(trim((string) ($login->username ?? '')));
-            if ($username !== '') {
-                $org = OrgUser::query()->whereRaw('LOWER(username) = ?', [$username])->first();
-            }
-        }
-
-        if (! $org || ! $org->is_active) {
+        $account = PamanaAuthUser::findByAuthId($pamanaStaffUserId);
+        if (! $account || ! $account->isActive()) {
             return null;
         }
 
-        $email = strtolower(trim((string) $org->email));
-        if ($email === '') {
-            return null;
-        }
-
-        $user = User::query()->where('email', $email)->first();
+        $user = User::profileForAuthAccount($account, [
+            'name' => $profile['name'] ?? '',
+            'division' => $profile['division'] ?? '',
+            'designation' => $profile['designation'] ?? '',
+        ], refresh: false);
         if (! $user) {
-            $user = User::create([
-                'id' => Id::newId(),
-                'email' => $email,
-                'password_hash' => (string) $org->password,
-                'name' => $profile && $profile['name'] !== '' ? $profile['name'] : $org->displayName(),
-                'role' => $org->ticketingRole(),
-                'division' => $profile['division'] ?? '',
-                'designation' => $profile['designation'] ?? '',
-                'active' => true,
-            ]);
-        }
-
-        if (! $user->active) {
             return null;
         }
 
@@ -827,7 +688,7 @@ class PamanaEmployeeService
     /**
      * Client Request Recommendation & Routing.
      *
-     * 1. Submitter identity — org `users.id` → PAMANA `staffs.user_id` (then section).
+     * 1. Submitter identity — pamana_auth `user.id` → PAMANA `staffs.user_id` (then section).
      * 2. Recommendation — Recommending Officer: `staff_role.user_id` for that section_id
      *    (the submitter's supervisor / section head).
      * 3. Immediate Supervisor: that `staff_role.supervisor_id` (skipped when the same person).
@@ -1000,48 +861,16 @@ class PamanaEmployeeService
             return null;
         }
 
-        $org = OrgUser::query()->find((int) $pamanaUserId);
-        if (! $org) {
-            try {
-                $login = DB::connection('pamana')->selectOne(
-                    'SELECT username, email FROM `user` WHERE id = ? LIMIT 1',
-                    [$pamanaUserId],
-                );
-            } catch (Throwable) {
-                $login = null;
-            }
-            $username = strtolower(trim((string) ($login->username ?? '')));
-            if ($username !== '') {
-                $org = OrgUser::query()
-                    ->whereRaw('LOWER(username) = ?', [$username])
-                    ->first();
-            }
-        }
-
-        if (! $org || ! $org->is_active) {
+        $account = PamanaAuthUser::findByAuthId($pamanaUserId);
+        if (! $account || ! $account->isActive()) {
             return null;
         }
 
-        $email = strtolower(trim((string) $org->email));
-        if ($email === '') {
-            return null;
-        }
-
-        $user = User::query()->where('email', $email)->first();
+        $user = User::profileForAuthAccount($account, [
+            'name' => $name,
+            'division' => $sectionName !== '' ? $sectionName : 'ICT',
+        ], refresh: false);
         if (! $user) {
-            $user = User::create([
-                'id' => Id::newId(),
-                'email' => $email,
-                'password_hash' => (string) $org->password,
-                'name' => $name !== '' ? $name : $org->displayName(),
-                'role' => $org->ticketingRole(),
-                'division' => $sectionName !== '' ? $sectionName : 'ICT',
-                'designation' => '',
-                'active' => true,
-            ]);
-        }
-
-        if (! $user->active) {
             return null;
         }
 

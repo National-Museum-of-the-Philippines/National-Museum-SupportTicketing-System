@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Form;
 use App\Models\OrgUser;
+use App\Models\PamanaAuthUser;
 use App\Models\User;
 use App\Services\PamanaEmployeeService;
 use App\Support\Id;
@@ -108,14 +109,15 @@ class NmpSeedCommand extends Command
 
         $orgRemoved = 0;
         foreach ($emails as $email) {
-            $org = OrgUser::query()->whereRaw('LOWER(email) = ?', [$email])->first();
-            if (! $org) {
+            // pamana_auth is read-only: only this app's roles and auth-method row are removed.
+            $account = PamanaAuthUser::query()->whereRaw('LOWER(email) = ?', [$email])->first();
+            if (! $account) {
                 continue;
             }
-            DB::table('model_has_roles')->where('model_id', $org->id)->delete();
-            $org->delete();
+            DB::table('model_has_roles')->where('model_id', $account->id)->delete();
+            OrgUser::query()->whereKey($account->id)->delete();
             $orgRemoved++;
-            $this->line("  deleted org login: {$email}");
+            $this->line("  removed roles and auth methods: {$email}");
         }
 
         foreach ($demoUsers as $user) {

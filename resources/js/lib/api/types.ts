@@ -270,6 +270,7 @@ export type RbacEmployee = {
   username: string;
   roles: Array<{ id: number; name: string }>;
   hasRoles: boolean;
+  mfaEnabled: boolean;
 };
 
 export type RbacEmployeesResponse = {
@@ -293,4 +294,66 @@ export type UploadedFileRecord = {
   mimeType: string;
   size: number;
   url: string;
+};
+
+export type ErrorLogSource = "server" | "client" | "console";
+export type ErrorLogLevel = "error" | "warning";
+
+export type ErrorLogRecord = {
+  _id: string;
+  source: ErrorLogSource;
+  level: ErrorLogLevel;
+  status: number | null;
+  message: string;
+  exception: string | null;
+  file: string | null;
+  line: number | null;
+  trace?: string | null;
+  method: string | null;
+  url: string | null;
+  userId: string | null;
+  userName: string | null;
+  userRole: string | null;
+  ip: string | null;
+  userAgent: string | null;
+  fingerprint: string;
+  occurrences: number;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ErrorLogSummary = {
+  open: number;
+  openErrors: number;
+  openWarnings: number;
+  last24h: number;
+  resolved: number;
+  bySource: Record<string, number>;
+  lastSeenAt: string | null;
+};
+
+export type ErrorLogListResponse = {
+  items: ErrorLogRecord[];
+  total: number;
+  page: number;
+  perPage: number;
+};
+
+export type AuthMethodsStatus = {
+  twoFactor: {
+    enabled: boolean;
+    pending: boolean;
+    confirmedAt: string | null;
+    recoveryCodesLeft: number;
+  };
+};
+
+export type TwoFactorSetup = {
+  secret: string;
+  otpauthUri: string;
+  recoveryCodes: string[];
 };

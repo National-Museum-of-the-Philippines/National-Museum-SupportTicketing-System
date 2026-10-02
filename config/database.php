@@ -64,7 +64,7 @@ return [
             ]) : [],
         ],
 
-        /** PAMANA HR / employee directory (staffs + staffinformations). */
+        /** PAMANA HR / employee directory (staffs + staffinformations). Read-only. */
         'pamana' => [
             'driver' => 'mysql',
             'host' => env('PAMANA_DB_HOST', env('DB_HOST', '127.0.0.1')),
@@ -72,6 +72,26 @@ return [
             'database' => env('PAMANA_DB_DATABASE', 'pamana_employees_new'),
             'username' => env('PAMANA_DB_USERNAME', env('DB_USERNAME', 'root')),
             'password' => env('PAMANA_DB_PASSWORD', env('DB_PASSWORD', '')),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
+        /** PAMANA login accounts (`user`). Read-only — do not migrate this schema. */
+        'pamana_auth' => [
+            'driver' => 'mysql',
+            'host' => env('PAMANA_AUTH_DB_HOST', env('PAMANA_DB_HOST', env('DB_HOST', '127.0.0.1'))),
+            'port' => env('PAMANA_AUTH_DB_PORT', env('PAMANA_DB_PORT', env('DB_PORT', '3306'))),
+            'database' => env('PAMANA_AUTH_DB_DATABASE', 'pamana_auth'),
+            'username' => env('PAMANA_AUTH_DB_USERNAME', env('PAMANA_DB_USERNAME', env('DB_USERNAME', 'root'))),
+            'password' => env('PAMANA_AUTH_DB_PASSWORD', env('PAMANA_DB_PASSWORD', env('DB_PASSWORD', ''))),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),

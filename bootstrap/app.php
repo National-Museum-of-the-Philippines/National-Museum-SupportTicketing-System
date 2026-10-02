@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\JwtAuthenticate;
+use App\Services\ErrorMonitorService;
 use App\Support\ApiException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -27,6 +28,14 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Error Monitoring (Super Admin): persist failures before they are logged.
+        $exceptions->report(function (Throwable $e): void {
+            app(ErrorMonitorService::class)->recordThrowable(
+                $e,
+                app()->bound('request') ? app('request') : null,
+            );
+        });
+
         $exceptions->render(function (ApiException $e, Request $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
                 return response()->json(['error' => $e->getMessage()], $e->status);

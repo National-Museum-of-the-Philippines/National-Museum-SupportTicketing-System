@@ -1,14 +1,16 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import {
   Activity,
+  AlertTriangle,
   BarChart3,
   Bell,
   Building2,
   ClipboardList,
   FileStack,
+  Inbox,
   KeyRound,
   LayoutDashboard,
-  Settings,
+  Send,
   Shield,
   UserCircle,
   Users,
@@ -23,13 +25,15 @@ import {
   RECORDS_DASHBOARD,
   SUPER_ADMIN_ACTIVITY,
   SUPER_ADMIN_DASHBOARD,
+  SUPER_ADMIN_ERRORS,
   SUPER_ADMIN_FORMS,
+  SUPER_ADMIN_MY_REQUESTS,
+  SUPER_ADMIN_MY_REQUESTS_SUBMIT,
   SUPER_ADMIN_NOTIFICATIONS,
   SUPER_ADMIN_PERMISSIONS,
   SUPER_ADMIN_PROFILE,
   SUPER_ADMIN_REPORTS,
   SUPER_ADMIN_ROLES,
-  SUPER_ADMIN_SETTINGS,
   SUPER_ADMIN_USERS,
 } from "@/lib/navigation";
 
@@ -59,6 +63,13 @@ function SuperAdminLayout() {
           ],
         },
         {
+          title: "REQUESTS",
+          items: [
+            { to: SUPER_ADMIN_MY_REQUESTS, label: "My Requests", icon: Inbox },
+            { to: SUPER_ADMIN_MY_REQUESTS_SUBMIT, label: "Submit Request", icon: Send },
+          ],
+        },
+        {
           title: "PORTALS / ACCESS",
           items: [
             { to: ADMIN_DASHBOARD, label: "Admin Portal", icon: Building2 },
@@ -77,9 +88,9 @@ function SuperAdminLayout() {
         {
           title: "SYSTEM MANAGEMENT",
           items: [
-            { to: SUPER_ADMIN_SETTINGS, label: "System Settings", icon: Settings },
             { to: SUPER_ADMIN_FORMS, label: "Form Management", icon: FileStack },
             { to: SUPER_ADMIN_ACTIVITY, label: "Activity Logs / Audit Logs", icon: Activity },
+            { to: SUPER_ADMIN_ERRORS, label: "Error Monitoring", icon: AlertTriangle },
             { to: SUPER_ADMIN_NOTIFICATIONS, label: "System Notifications", icon: Bell },
           ],
         },
@@ -87,7 +98,6 @@ function SuperAdminLayout() {
           title: "ACCOUNT",
           items: [
             { to: SUPER_ADMIN_PROFILE, label: "My Profile", icon: UserCircle },
-            { to: SUPER_ADMIN_SETTINGS, label: "Settings", icon: Settings },
           ],
         },
       ]}
