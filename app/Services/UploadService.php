@@ -7,11 +7,14 @@ use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class UploadService
 {
     private const MAX_BYTES = 25 * 1024 * 1024;
+
+    /** Stored files never change under the same name, so browsers may keep them. */
+    private const CACHE_CONTROL = 'private, max-age=31536000, immutable';
 
     /**
      * @return array{filename: string, originalName: string, mimeType: string, size: int, url: string}
@@ -44,6 +47,7 @@ class UploadService
                 throw new ApiException(500, 'Could not store the uploaded file');
             }
             $size = (int) $disk->size($filename);
+            $this->seedCache($filename, (string) $file->getRealPath());
         } catch (ApiException $e) {
             throw $e;
         } catch (\Throwable $e) {
@@ -59,7 +63,11 @@ class UploadService
         ];
     }
 
-    public function responseFor(string $filename): StreamedResponse
+    /**
+     * Serve a stored file. Files on S3 are downloaded once into a local cache and
+     * served from disk afterwards, so viewers do not wait on S3 for every request.
+     */
+    public function responseFor(string $filename): Response
     {
         $safe = basename($filename);
         if ($safe === '' || $safe !== $filename || str_contains($safe, '..')) {
@@ -69,11 +77,20 @@ class UploadService
         $disk = $this->disk();
 
         try {
+            if ($this->usesCache()) {
+                $cached = $this->cachedPath($safe, $disk);
+                if ($cached === null) {
+                    abort(404);
+                }
+
+                return response()->file($cached)->setPrivate()->setMaxAge(31536000)->setImmutable();
+            }
+
             if (! $disk->exists($safe)) {
                 abort(404);
             }
 
-            return $disk->response($safe);
+            return $disk->response($safe, null, ['Cache-Control' => self::CACHE_CONTROL]);
         } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
             throw $e;
         } catch (\Throwable $e) {
@@ -91,10 +108,41 @@ class UploadService
                 continue;
             }
             $disk->delete($path);
+            @unlink($this->cacheDir().'/'.basename($path));
             $removed++;
         }
 
         return $removed;
+    }
+
+    /**
+     * Download every stored file that is not cached yet.
+     *
+     * @return array{cached: int, failed: list<string>}
+     */
+    public function warmCache(): array
+    {
+        $disk = $this->disk();
+        $cached = 0;
+        $failed = [];
+
+        if (! $this->usesCache()) {
+            return ['cached' => 0, 'failed' => []];
+        }
+
+        foreach ($disk->files() as $path) {
+            $name = basename($path);
+            if ($name === '.gitkeep' || is_file($this->cacheDir().'/'.$name)) {
+                continue;
+            }
+            try {
+                $this->cachedPath($name, $disk) !== null ? $cached++ : $failed[] = $name;
+            } catch (\Throwable) {
+                $failed[] = $name;
+            }
+        }
+
+        return ['cached' => $cached, 'failed' => $failed];
     }
 
     /**
@@ -152,6 +200,66 @@ class UploadService
         }
 
         return Storage::disk('uploads');
+    }
+
+    /** Only remote disks are cached; the local disk already is the file. */
+    private function usesCache(): bool
+    {
+        return config('filesystems.disks.uploads.driver') !== 'local';
+    }
+
+    private function cacheDir(): string
+    {
+        $dir = storage_path('app/uploads-cache');
+        if (! is_dir($dir)) {
+            // Written by both the web server user and the CLI user.
+            @mkdir($dir, 0777, true);
+            @chmod($dir, 0777);
+        }
+
+        return $dir;
+    }
+
+    /** Local copy of a stored file, fetched on first use; null when it does not exist. */
+    private function cachedPath(string $filename, Filesystem $disk): ?string
+    {
+        $target = $this->cacheDir().'/'.$filename;
+        if (is_file($target)) {
+            return $target;
+        }
+
+        if (! $disk->exists($filename)) {
+            return null;
+        }
+
+        // Download beside the target and rename, so a half-finished file is never served.
+        $partial = $target.'.'.bin2hex(random_bytes(4)).'.part';
+        $in = $disk->readStream($filename);
+        $out = fopen($partial, 'wb');
+        try {
+            $copied = stream_copy_to_stream($in, $out);
+            if ($copied === false || $copied !== (int) $disk->size($filename)) {
+                throw new \RuntimeException('Incomplete download of '.$filename);
+            }
+        } catch (\Throwable $e) {
+            @unlink($partial);
+            throw $e;
+        } finally {
+            fclose($out);
+            if (is_resource($in)) {
+                fclose($in);
+            }
+        }
+        rename($partial, $target);
+
+        return $target;
+    }
+
+    private function seedCache(string $filename, string $sourcePath): void
+    {
+        if ($this->usesCache() && $sourcePath !== '') {
+            @copy($sourcePath, $this->cacheDir().'/'.$filename);
+        }
     }
 
     private function storageFailure(string $action, \Throwable $e): ApiException

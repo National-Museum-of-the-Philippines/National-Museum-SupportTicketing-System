@@ -10,6 +10,7 @@ use App\Services\PamanaEmployeeService;
 use App\Support\ApiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
@@ -36,6 +37,16 @@ class AuthController extends Controller
         $password = (string) $request->input('password');
         $account = PamanaAuthUser::attempt($login, $password);
         if (! $account) {
+            // The reason stays in the log; the response is the same for every case.
+            $found = PamanaAuthUser::findByLogin($login);
+            Log::notice('Login rejected', [
+                'login' => $login,
+                'reason' => match (true) {
+                    $found === null => 'no pamana_auth account matches',
+                    ! $found->isActive() => 'account is not active (status '.$found->status.')',
+                    default => 'password does not match',
+                },
+            ]);
             throw new ApiException(401, 'Invalid credentials');
         }
         if ($account->isSecurityPersonnel()) {
@@ -48,12 +59,14 @@ class AuthController extends Controller
                 return response()->json(['twoFactorRequired' => true]);
             }
             if (! $this->authMethods->verifyLoginCode($account, $code)) {
+                Log::notice('Login rejected', ['login' => $login, 'reason' => 'MFA code does not match']);
                 throw new ApiException(401, 'The authentication code is incorrect');
             }
         }
 
         $user = User::profileForAuthAccount($account);
         if (! $user) {
+            Log::notice('Login rejected', ['login' => $login, 'reason' => 'ticketing profile is deactivated or has no email']);
             throw new ApiException(401, 'Invalid credentials');
         }
 

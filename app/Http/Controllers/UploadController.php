@@ -7,7 +7,7 @@ use App\Services\UploadService;
 use App\Support\ApiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class UploadController extends Controller
 {
@@ -23,7 +23,7 @@ class UploadController extends Controller
         ], 201);
     }
 
-    public function show(string $filename, UploadService $uploads): StreamedResponse
+    public function show(string $filename, UploadService $uploads): Response
     {
         return $uploads->responseFor($filename);
     }
