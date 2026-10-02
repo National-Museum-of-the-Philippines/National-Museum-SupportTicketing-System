@@ -22,9 +22,6 @@ export function SettingsPage() {
   const [name, setName] = useState(user?.name ?? "");
   const [division, setDivision] = useState(user?.division ?? "");
   const [designation, setDesignation] = useState(user?.designation ?? "");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
     setName(user?.name ?? "");
@@ -51,23 +48,6 @@ export function SettingsPage() {
     },
   });
 
-  const passwordMutation = useMutation({
-    mutationFn: () =>
-      api.changePassword({
-        currentPassword,
-        newPassword,
-      }),
-    onSuccess: () => {
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      toast.success("Password changed");
-    },
-    onError: (err: Error) => {
-      toast.error(err instanceof ApiError ? err.message : "Could not change password");
-    },
-  });
-
   const saveProfile = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !division.trim()) {
@@ -77,24 +57,11 @@ export function SettingsPage() {
     profileMutation.mutate();
   };
 
-  const savePassword = (e: FormEvent) => {
-    e.preventDefault();
-    if (newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error("New password and confirmation do not match");
-      return;
-    }
-    passwordMutation.mutate();
-  };
-
   return (
     <div className="page-shell">
       <WorkspacePageHeader
         title="Settings"
-        description="Manage your account details and password for this portal."
+        description="Manage your account details for this portal."
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -144,42 +111,11 @@ export function SettingsPage() {
           </form>
         </ActionPanel>
 
-        <ActionPanel title="Password" description="Use a strong password known only to you.">
-          <form className="space-y-4" onSubmit={savePassword}>
-            <div className="space-y-2">
-              <Label htmlFor="settings-current-password">Current password</Label>
-              <Input
-                id="settings-current-password"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                autoComplete="current-password"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="settings-new-password">New password</Label>
-              <Input
-                id="settings-new-password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                autoComplete="new-password"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="settings-confirm-password">Confirm new password</Label>
-              <Input
-                id="settings-confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                autoComplete="new-password"
-              />
-            </div>
-            <Button type="submit" disabled={passwordMutation.isPending} className="shadow-sm">
-              {passwordMutation.isPending ? "Updating…" : "Change password"}
-            </Button>
-          </form>
+        <ActionPanel title="Password" description="Your sign-in password is your PAMANA password.">
+          <p className="text-sm text-muted-foreground">
+            This portal signs you in with your PAMANA account and cannot change its password.
+            Change your password in PAMANA, then use the new password here.
+          </p>
         </ActionPanel>
       </div>
     </div>

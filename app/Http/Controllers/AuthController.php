@@ -149,36 +149,12 @@ class AuthController extends Controller
         return response()->json(['user' => $this->pamana->enrichPublicUser($user)]);
     }
 
+    /**
+     * Passwords live in pamana_auth.user, which this app never modifies.
+     */
     public function changePassword(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'currentPassword' => 'required|string|min:1',
-            'newPassword' => 'required|string|min:6|max:128',
-        ]);
-        if ($validator->fails()) {
-            throw new ApiException(422, $validator->errors()->first());
-        }
-
-        $auth = $this->authUser($request);
-        $user = User::query()->find($auth->id);
-        if (! $user || ! $user->active) {
-            throw new ApiException(404, 'User not found');
-        }
-
-        $current = (string) $request->input('currentPassword');
-        if (! $user->passwordMatches($current)) {
-            throw new ApiException(400, 'Current password is incorrect');
-        }
-
-        if ($request->input('currentPassword') === $request->input('newPassword')) {
-            throw new ApiException(400, 'New password must be different from the current password');
-        }
-
-        $user->setPassword((string) $request->input('newPassword'));
-        $user->save();
-        $user->syncPamanaPasswordHash();
-
-        return response()->json(['ok' => true]);
+        throw new ApiException(403, 'Passwords are managed in PAMANA. Change your password there.');
     }
 
     public function authMethods(Request $request): JsonResponse

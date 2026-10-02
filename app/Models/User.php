@@ -5,9 +5,7 @@ namespace App\Models;
 use App\Support\Id;
 use App\Traits\ApiSerializable;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Throwable;
 
 class User extends Model
 {
@@ -63,33 +61,6 @@ class User extends Model
     public function setPassword(string $password): void
     {
         $this->password_hash = Hash::make($password);
-    }
-
-    /** Current password check: the ticketing hash, then the pamana_auth login hash. */
-    public function passwordMatches(string $plain): bool
-    {
-        try {
-            if ($this->verifyPassword($plain)) {
-                return true;
-            }
-        } catch (Throwable) {
-            // users_.password_hash may not be bcrypt yet; pamana_auth holds the login hash.
-        }
-
-        return (bool) PamanaAuthUser::findByLogin((string) $this->email)?->passwordMatches($plain);
-    }
-
-    public function syncPamanaPasswordHash(): void
-    {
-        $account = PamanaAuthUser::findByLogin((string) $this->email);
-        if (! $account || $this->password_hash === '') {
-            return;
-        }
-
-        DB::connection('pamana_auth')->table('user')->where('id', $account->id)->update([
-            'password_hash' => $this->password_hash,
-            'updated_at' => time(),
-        ]);
     }
 
     /**
