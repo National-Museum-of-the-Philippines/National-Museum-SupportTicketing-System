@@ -135,7 +135,7 @@ export function ClientStageReviewPage({ stage }: { stage: ClientReviewStage }) {
                 <th className="px-4 py-3 sm:px-5">Client</th>
                 <th className="px-4 py-3 sm:px-5">Division</th>
                 <th className="px-4 py-3 sm:px-5">Status</th>
-                <th className="px-4 py-3 sm:px-5">Action</th>
+                <th className="whitespace-nowrap px-4 py-3 text-center sm:px-5">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -166,13 +166,13 @@ export function ClientStageReviewPage({ stage }: { stage: ClientReviewStage }) {
                       <StatusBadge status={t.status} />
                     </td>
                     <td className="px-4 py-3.5 sm:px-5">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-nowrap items-center justify-center gap-2 whitespace-nowrap">
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => setViewTicket({ id: t._id, number: t.ticketNumber })}
                         >
-                          <FileText className="mr-1.5 h-3.5 w-3.5" />
+                          <FileText />
                           View file
                         </Button>
                         <Button

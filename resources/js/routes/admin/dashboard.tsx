@@ -1,37 +1,31 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, ClipboardCheck, FilePenLine, FileStack } from "lucide-react";
+import { AlertCircle, ClipboardCheck, Clock, FilePenLine } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth";
 import {
   ActionLink,
   DashboardAlert,
-  DashboardHero,
-  DataPanel,
-  EmptyState,
-  ListRow,
-  PanelLoading,
-  StatCard,
-  StatusBadge,
 } from "@/components/layout/workspace-ui";
+import {
+  HeroLink,
+  OverviewHero,
+  OverviewStat,
+  TodayActivity,
+} from "@/components/layout/dashboard-overview";
 import { ADMIN_APPROVALS, ADMIN_ASSIGNED, ADMIN_FORMS, ADMIN_MY_FORMS } from "@/lib/navigation";
+import { AdminDashboardLegacy } from "./-dashboard-legacy";
 import { useAdminSession } from "@/lib/use-portal-session";
-import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/components/ui/button";
 
 export const Route = createFileRoute("/admin/dashboard")({
   component: AdminDashboardPage,
 });
 
-function formatToday() {
-  return new Date().toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+function AdminDashboardPage() {
+  return <AdminDashboardResty />;
 }
 
-function AdminDashboardPage() {
+function AdminDashboardResty() {
   const { user } = useAuth();
   const { canQuery } = useAdminSession();
   const { data: forms, isLoading: formsLoading } = useQuery({
@@ -48,6 +42,16 @@ function AdminDashboardPage() {
     queryFn: () => api.listTickets({ status: "pending_approval", limit: "8" }, "admin"),
     enabled: canQuery,
   });
+  const { data: activity, isLoading: activityLoading } = useQuery({
+    queryKey: ["admin-activity"],
+    queryFn: () => {
+      const midnight = new Date();
+      midnight.setHours(0, 0, 0, 0);
+      return api.adminActivity({ since: midnight.toISOString(), limit: 200 });
+    },
+    enabled: canQuery,
+    refetchInterval: 60_000,
+  });
   const assignedCount = assigned?.items.length ?? 0;
 
   const items = forms?.items ?? [];
@@ -60,22 +64,33 @@ function AdminDashboardPage() {
 
   return (
     <div className="page-shell">
-      <DashboardHero
-        eyebrow="Admin"
-        title={firstName ? `Good day, ${firstName}` : "Dashboard"}
-        description="Manage TA forms and review incoming client requests."
-        meta={<p className="time-pill">{formatToday()}</p>}
-        actions={
-          <>
-            <ActionLink to={ADMIN_FORMS}>Form Builder</ActionLink>
-            {pendingApprovalCount > 0 ? (
-              <ActionLink to={ADMIN_APPROVALS} variant="outline">
-                Approvals ({pendingApprovalCount})
-              </ActionLink>
-            ) : null}
-          </>
-        }
-      />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_23rem]">
+        <OverviewHero
+          title={firstName ? `Good day, ${firstName}` : "Dashboard"}
+          actions={
+            <>
+              <HeroLink to={ADMIN_APPROVALS}>Review approvals</HeroLink>
+              <HeroLink to={ADMIN_FORMS} variant="outline">
+                Open Form Builder
+              </HeroLink>
+            </>
+          }
+        >
+          {pendingApprovalCount > 0 || pendingForms > 0 ? (
+            <>
+              You have <strong className="text-lg font-bold text-white">{pendingApprovalCount} request{pendingApprovalCount === 1 ? "" : "s"}</strong>{" "}
+              waiting for approval and {pendingForms} pending review with Records.
+            </>
+          ) : (
+            "You're all caught up. Manage TA forms and review incoming client requests."
+          )}
+        </OverviewHero>
+        <div className="flex flex-col gap-4">
+          <OverviewStat label="Requests to approve" hint="Client submissions" value={pendingApprovalCount} to={ADMIN_APPROVALS} icon={ClipboardCheck} loading={ticketsLoading} />
+          <OverviewStat label="Pending review" hint="Waiting on Records" value={pendingForms} to={ADMIN_MY_FORMS} icon={Clock} loading={formsLoading} />
+          <OverviewStat label="Draft forms" hint="Not yet submitted" value={draftForms} to={ADMIN_MY_FORMS} icon={FilePenLine} loading={formsLoading} />
+        </div>
+      </div>
 
       {assignedCount > 0 ? (
         <DashboardAlert tone="info" title="You have assigned requests">
@@ -120,74 +135,7 @@ function AdminDashboardPage() {
         </DashboardAlert>
       ) : null}
 
-      <div className="dashboard-stats">
-        <StatCard
-          label="Requests to approve"
-          value={pendingApprovalCount}
-          hint="Client submissions"
-          to={ADMIN_APPROVALS}
-          icon={ClipboardCheck}
-          accent="info"
-          loading={ticketsLoading}
-        />
-        <StatCard
-          label="Pending review"
-          value={pendingForms}
-          hint="Waiting on Records"
-          to={ADMIN_MY_FORMS}
-          icon={FileStack}
-          accent="warning"
-          loading={formsLoading}
-        />
-        <StatCard
-          label="Draft forms"
-          value={draftForms}
-          hint="Not yet submitted"
-          to={ADMIN_MY_FORMS}
-          icon={FilePenLine}
-          loading={formsLoading}
-        />
-      </div>
-
-      <DataPanel
-        title="Pending client requests"
-        action={
-          pendingTickets.length > 0 ? (
-            <ActionLink to={ADMIN_APPROVALS} variant="outline">
-              View all
-            </ActionLink>
-          ) : undefined
-        }
-      >
-        {ticketsLoading ? (
-          <PanelLoading label="Loading requests…" />
-        ) : pendingTickets.length === 0 ? (
-          <EmptyState
-            title="No pending approvals"
-            description="New client requests will appear here when submitted."
-          />
-        ) : (
-          <ul className="divide-y divide-border/80">
-            {pendingTickets.map((t) => (
-              <ListRow
-                key={t._id}
-                title={t.formTitle}
-                subtitle={`${t.ticketNumber} · ${t.creatorName}${t.division ? ` · ${t.division}` : ""}`}
-                trailing={<StatusBadge status={t.status} />}
-                action={
-                  <Link
-                    to="/admin/requests/$ticketId"
-                    params={{ ticketId: t._id }}
-                    className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shadow-sm")}
-                  >
-                    Review
-                  </Link>
-                }
-              />
-            ))}
-          </ul>
-        )}
-      </DataPanel>
+      <TodayActivity items={activity?.items ?? []} loading={activityLoading} />
     </div>
   );
 }

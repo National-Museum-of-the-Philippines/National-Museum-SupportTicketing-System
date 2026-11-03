@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\FormController;
+use App\Http\Controllers\FormReportController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\RbacController;
@@ -31,6 +32,16 @@ Route::prefix('auth')->group(function () {
         Route::post('/two-factor/disable', [AuthController::class, 'disableTwoFactor']);
         Route::post('/two-factor/recovery-codes', [AuthController::class, 'regenerateRecoveryCodes']);
     });
+});
+
+Route::middleware(['jwt.auth', 'role:admin,super_admin'])->prefix('form-reports')->group(function () {
+    Route::get('/forms', [FormReportController::class, 'forms']);
+    Route::get('/{formId}', [FormReportController::class, 'report']);
+    Route::get('/{formId}/requests', [FormReportController::class, 'requests']);
+    Route::get('/{formId}/closed', [FormReportController::class, 'closed']);
+    Route::get('/{formId}/settings', [FormReportController::class, 'settings']);
+    Route::put('/{formId}/settings', [FormReportController::class, 'saveSettings']);
+    Route::get('/{formId}/dynamic', [FormReportController::class, 'dynamic']);
 });
 
 Route::middleware('jwt.auth')->prefix('forms')->group(function () {
@@ -66,7 +77,10 @@ Route::middleware('jwt.auth')->prefix('tickets')->group(function () {
     Route::get('/for-review', [TicketController::class, 'forReview'])->middleware('role:user,admin');
     Route::get('/assigned/mine', [TicketController::class, 'assignedMine'])->middleware('role:user,admin');
     Route::get('/', [TicketController::class, 'index'])->middleware('role:admin');
+    Route::get('/activity', [TicketController::class, 'activity'])->middleware('role:admin');
+    Route::get('/division-stats', [TicketController::class, 'divisionStats'])->middleware('role:admin');
     Route::get('/assignees', [TicketController::class, 'assignees'])->middleware('role:admin');
+    Route::get('/{id}/history', [TicketController::class, 'history'])->middleware('role:admin');
     Route::get('/{id}/document.pdf', [TicketController::class, 'documentPdf']);
     Route::get('/{id}', [TicketController::class, 'show']);
     Route::post('/{id}/approve', [TicketController::class, 'approve'])->middleware('role:user,admin');

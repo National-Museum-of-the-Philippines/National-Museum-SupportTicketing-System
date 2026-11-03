@@ -216,7 +216,7 @@ class TicketService
      * Action Officer whose turn it is / the Request Manager. Legacy tickets
      * (forms without a workflow) stay visible to every admin.
      *
-     * @param  array{status?: string, search?: string, page?: int, limit?: int, scope?: string}  $query
+     * @param  array{status?: string, search?: string, page?: int, limit?: int, scope?: string, formId?: string}  $query
      * @return array{items: list<array<string, mixed>>, total: int, page: int, limit: int, pendingCount: int}
      */
     public function listTicketsForAdmin(AuthUser $user, array $query): array
@@ -239,6 +239,12 @@ class TicketService
         }
         if ($scope === 'management') {
             $this->scopeToRequestManager($builder, $user);
+        } elseif (empty($query['status'])) {
+            // Reports: an admin only reports on tickets of forms they created.
+            $this->scopeToOwnForms($builder, $user);
+        }
+        if (! empty($query['formId'])) {
+            $builder->where('form_id', (string) $query['formId']);
         }
         if (! empty($query['search']) && trim($query['search']) !== '') {
             $search = trim($query['search']);
@@ -499,9 +505,23 @@ class TicketService
         });
     }
 
-    /** Request Management: after Action Officer approvals, any admin (e.g. Resty) can assign. */
+    /** Admins only see tickets of forms they created; super admins see everything. */
+    private function scopeToOwnForms($builder, AuthUser $user): void
+    {
+        if ($user->role === 'admin') {
+            $builder->whereRaw('EXISTS (SELECT 1 FROM forms cf WHERE cf.id = tickets.form_id AND cf.created_by = ?)', [$user->id]);
+        }
+    }
+
+    /**
+     * Request Management: an admin only sees tickets of forms they created (like
+     * Published Forms); super admins see everything. After Action Officer
+     * approvals the form's creator can assign.
+     */
     private function scopeToRequestManager($builder, AuthUser $user): void
     {
+        $this->scopeToOwnForms($builder, $user);
+
         $builder->where(function ($q) {
             $q->whereRaw('NOT EXISTS ('.self::WORKFLOW_FORM_SQL.')')
                 ->orWhere(function ($ready) {

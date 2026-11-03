@@ -357,3 +357,134 @@ export type TwoFactorSetup = {
   otpauthUri: string;
   recoveryCodes: string[];
 };
+
+export type FormReportFormSummary = {
+  _id: string;
+  title: string;
+  formNo: string;
+  version: string;
+  office: string;
+};
+
+export type FormReportOption = { optionId: string; label: string; requests: number; percent: number };
+
+export type FormReportGroup = {
+  fieldId: string;
+  label: string;
+  hint?: string;
+  section?: string;
+  sectionHint?: string;
+  totalTicks: number;
+  requestsAnswered: number;
+  options: FormReportOption[];
+  hasLegacy: boolean;
+};
+
+export type FormReportPersonRow = {
+  userId: string;
+  name: string;
+  assigned: number;
+  closed: number;
+  open: number;
+  percentClosed: number;
+};
+
+export type FormReportClosedTicket = {
+  _id: string;
+  ticketNumber: string;
+  title: string;
+  creatorName: string;
+  division: string;
+  createdAt: string | null;
+  closedAt: string | null;
+  choices: Record<string, string[]>;
+  answers: Array<{ label: string; type: string; value: string }>;
+};
+
+export type FormReport = {
+  form: FormReportFormSummary;
+  range: { from: string; to: string };
+  kpis: {
+    requests: number;
+    open: number;
+    closed: number;
+    rejected: number;
+    completionRate: number;
+    requestsVsPrevious: number;
+    avgDaysToClose: number | null;
+    avgDaysVsPrevious: number | null;
+    targetDays: number;
+    closedWithinTarget: number;
+    withinTargetPercent: number;
+    openPastTarget: number;
+  };
+  groups: FormReportGroup[];
+  perMonth: Array<{
+    month: string;
+    requests: number;
+    closed: number;
+    open: number;
+    avgDays: number | null;
+    withinTarget: number;
+    daily: Array<{ day: number; requests: number; closed: number; open: number; avgDays: number | null; withinTarget: number }>;
+  }>;
+  hasLegacyAnswers: boolean;
+  personnel: {
+    rows: FormReportPersonRow[];
+    unassigned: { assigned: number; closed: number; open: number } | null;
+    total: { assigned: number; closed: number; open: number };
+  };
+  openRequests: Array<{
+    _id: string;
+    ticketNumber: string;
+    creatorName: string;
+    assignedTo: string;
+    daysOpen: number;
+    pastTarget: boolean;
+  }>;
+  byDivision: Array<{ name: string; count: number }>;
+};
+
+export type FormReportRequest = {
+  _id: string;
+  ticketNumber: string;
+  creatorName: string;
+  division: string;
+  status: string;
+  createdAt: string;
+};
+
+export type FormReportRequests = {
+  items: FormReportRequest[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type ReportDisplayType = "donut" | "pie" | "bar" | "column" | "tiles" | "table" | "none";
+
+export type FormReportSettings = {
+  configured: boolean;
+  fields: Array<{
+    fieldId: string;
+    label: string;
+    type: string;
+    optionCount: number | null;
+    chosen: ReportDisplayType | null;
+  }>;
+};
+
+export type DynamicFormReport = {
+  closedCount: number;
+  hiddenCount: number;
+  configured: boolean;
+  cards: Array<{
+    fieldId: string;
+    label: string;
+    type: Exclude<ReportDisplayType, "none">;
+    total: number;
+    distinct: number;
+    items: Array<{ label: string; count: number }>;
+    all: Array<{ label: string; count: number }>;
+  }>;
+};

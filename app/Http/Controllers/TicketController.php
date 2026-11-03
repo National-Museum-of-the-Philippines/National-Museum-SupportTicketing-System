@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ActivityService;
+use App\Services\DivisionStatsService;
 use App\Services\TicketService;
 use App\Support\ApiException;
 use Illuminate\Http\JsonResponse;
@@ -16,7 +18,7 @@ class TicketController extends Controller
         'pending', 'resolved', 'closed', 'reopened',
     ];
 
-    public function __construct(private TicketService $tickets) {}
+    public function __construct(private TicketService $tickets, private DivisionStatsService $divisionStats, private ActivityService $activity) {}
 
     public function store(Request $request): JsonResponse
     {
@@ -73,9 +75,38 @@ class TicketController extends Controller
             'page' => (int) $request->query('page', 1),
             'limit' => (int) $request->query('limit', 20),
             'scope' => $request->query('scope'),
+            'formId' => $request->query('formId'),
         ]);
 
         return response()->json($data);
+    }
+
+    public function divisionStats(Request $request): JsonResponse
+    {
+        $days = (int) $request->query('days', 0);
+        $since = $days > 0 ? now()->subDays($days) : null;
+
+        return response()->json($this->divisionStats->forUser($this->authUser($request), $since));
+    }
+
+    public function activity(Request $request): JsonResponse
+    {
+        $limit = max(1, min(200, (int) $request->query('limit', 30)));
+        $since = null;
+        if (is_string($request->query('since')) && $request->query('since') !== '') {
+            try {
+                $since = \Illuminate\Support\Carbon::parse($request->query('since'));
+            } catch (\Throwable) {
+                $since = null;
+            }
+        }
+
+        return response()->json(['items' => $this->activity->listRecentActivities($limit, $since, $this->authUser($request)->id)]);
+    }
+
+    public function history(string $id): JsonResponse
+    {
+        return response()->json(['items' => $this->activity->listForEntity($id)]);
     }
 
     public function assignees(Request $request): JsonResponse

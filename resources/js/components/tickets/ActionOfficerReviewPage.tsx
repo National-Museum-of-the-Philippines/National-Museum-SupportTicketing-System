@@ -123,7 +123,7 @@ export function ActionOfficerReviewPage() {
                 <th className="px-4 py-3 sm:px-5">Client</th>
                 <th className="px-4 py-3 sm:px-5">Division</th>
                 <th className="px-4 py-3 sm:px-5">Status</th>
-                <th className="px-4 py-3 sm:px-5">Action</th>
+                <th className="whitespace-nowrap px-4 py-3 text-center sm:px-5">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -160,20 +160,20 @@ export function ActionOfficerReviewPage() {
                       />
                     </td>
                     <td className="px-4 py-3.5 sm:px-5">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-nowrap items-center justify-center gap-2 whitespace-nowrap">
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => setViewTicket({ id: t._id, number: t.ticketNumber })}
                         >
-                          <FileText className="mr-1.5 h-3.5 w-3.5" />
+                          <FileText />
                           View file
                         </Button>
                         {isReadyToAssign(t) ? (
                           isAdminRole(user?.role) ? (
                             <Button size="sm" asChild>
                               <Link to="/admin/requests/$ticketId" params={{ ticketId: t._id }}>
-                                <UserCheck className="mr-1.5 h-3.5 w-3.5" />
+                                <UserCheck />
                                 Assign
                               </Link>
                             </Button>

@@ -49,6 +49,12 @@ function reverbPort() {
   return Number.isFinite(port) ? port : 8080;
 }
 
+function reverbPath() {
+  const raw = String(import.meta.env.VITE_REVERB_PATH ?? "/support").replaceAll('"', "").trim();
+  if (!raw || raw === "/") return "";
+  return raw.startsWith("/") ? raw : `/${raw}`;
+}
+
 function channelNames(slot: PortalSlot): string[] {
   const user = getSession(slot)?.user;
   if (!user) return [];
@@ -76,7 +82,7 @@ export function getMessageSocket(slot: PortalSlot): EchoConnection | null {
     wsPort: reverbPort(),
     wssPort: reverbPort(),
     forceTLS: (import.meta.env.VITE_REVERB_SCHEME || "http").replaceAll('"', "") === "https",
-    wsPath: "/support",
+    wsPath: reverbPath(),
     enabledTransports: ["ws", "wss"],
     authEndpoint: `${apiBase()}/broadcasting/auth`,
     auth: {

@@ -10,6 +10,7 @@ import viteReact from "@vitejs/plugin-react";
 const root = path.dirname(fileURLToPath(import.meta.url));
 
 const allowedHosts = [
+  "on-prem.x-dcb.net",
   "nmp-ict.lan",
   "localhost",
   "127.0.0.1",

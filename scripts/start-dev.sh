@@ -102,26 +102,26 @@ else
 fi
 
 reverb_ready() {
-  ss -tlnH "sport = :8080" 2>/dev/null | grep -q ":8080"
+  ss -tlnH "sport = :8083" 2>/dev/null | grep -q ":8083"
 }
 
 if ! reverb_ready; then
-  echo "Starting Laravel Reverb on :8080..."
+  echo "Starting Laravel Reverb on :8083..."
   (
     cd "$ROOT"
     echo "REVERB - keep this process running"
-    php artisan reverb:start --host=0.0.0.0 --port=8080
+    php artisan reverb:start --host=0.0.0.0 --port=8083
   ) &
   REALTIME_PID=$!
   for _ in $(seq 1 20); do
     sleep 1
     if reverb_ready; then
-      echo "Reverb ready: ws://127.0.0.1:8080"
+      echo "Reverb ready: ws://127.0.0.1:8083"
       break
     fi
   done
 else
-  echo "Reverb already running: ws://127.0.0.1:8080"
+  echo "Reverb already running: ws://127.0.0.1:8083"
 fi
 
 # dist/client/assets is sometimes left owned by root, so rm fails and the
@@ -217,7 +217,7 @@ echo "  Example (if in PAMANA): resty.morancil"
 echo "  Fast bundled frontend is the default. Slow unbundled Vite: NMP_VITE_DEV=1"
 echo ""
 echo "API:      http://127.0.0.1:4000/api/health"
-echo "Reverb:   ws://127.0.0.1:8080"
+echo "Reverb:   ws://127.0.0.1:8083"
 echo ""
 echo "Press Ctrl+C to stop services started by this script."
 echo ""

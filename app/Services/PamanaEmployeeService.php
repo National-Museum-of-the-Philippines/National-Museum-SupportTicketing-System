@@ -505,6 +505,65 @@ class PamanaEmployeeService
         return $account !== null && in_array($account->ticketingRole(), ['admin', 'super_admin'], true);
     }
 
+    /**
+     * Division name from the plantilla chain: staff appointment → item number → section → division.
+     * Falls back to what is stored on the ticketing profile when PAMANA has no appointment.
+     */
+    public function divisionNameFor(User $user): string
+    {
+        $staffId = $this->pamanaStaffUserIdForTicketingUser($user);
+        if ($staffId !== null) {
+            try {
+                $row = DB::connection('pamana')->selectOne(
+                    "SELECT d.division_name
+                     FROM staff_appointment sa
+                     JOIN item_numbers it ON it.id COLLATE utf8mb4_unicode_ci = sa.item_number_id COLLATE utf8mb4_unicode_ci
+                     JOIN sections sec ON sec.id COLLATE utf8mb4_unicode_ci = it.sections_id COLLATE utf8mb4_unicode_ci
+                     JOIN divisions d ON CONVERT(d.id USING utf8mb4) COLLATE utf8mb4_unicode_ci = sec.divisions_id COLLATE utf8mb4_unicode_ci
+                     WHERE CAST(sa.user_id AS CHAR) COLLATE utf8mb4_unicode_ci = ?
+                       AND (sa.deleted = 0 OR sa.deleted IS NULL)
+                     ORDER BY sa.updated_at DESC
+                     LIMIT 1",
+                    [$staffId],
+                );
+                $name = trim((string) ($row->division_name ?? ''));
+                if ($name !== '') {
+                    return $name;
+                }
+            } catch (Throwable $e) {
+                Log::warning('Pamana division lookup failed', ['error' => $e->getMessage()]);
+            }
+        }
+
+        // Some staff have no appointment; the staffinformation view still carries their division.
+        $stored = trim((string) ($user->division ?? ''));
+        try {
+            $conn = DB::connection('pamana');
+            if ($staffId !== null) {
+                $row = $conn->selectOne(
+                    'SELECT division FROM staffinformation WHERE CAST(user_id AS CHAR) = ? LIMIT 1',
+                    [$staffId],
+                );
+                $name = trim((string) ($row->division ?? ''));
+                if ($name !== '') {
+                    return $name;
+                }
+            }
+            // A profile can also hold the division id instead of its name.
+            if ($stored !== '') {
+                $row = $conn->selectOne('SELECT division_name FROM divisions WHERE id = ? LIMIT 1', [$stored]);
+                $name = trim((string) ($row->division_name ?? ''));
+                if ($name !== '') {
+                    return $name;
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('Pamana division fallback failed', ['error' => $e->getMessage()]);
+        }
+
+        return $stored;
+    }
+
     private function pamanaStaffUserIdForTicketingUser(User $user): ?string
     {
         $account = $this->authAccountForTicketingUser($user);

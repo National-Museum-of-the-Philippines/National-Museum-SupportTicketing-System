@@ -17,6 +17,7 @@ export const SUPER_ADMIN_MY_REQUESTS_SUBMIT = "/super-admin/submit-request";
 export const ADMIN_DASHBOARD = "/admin/dashboard";
 export const ADMIN_FORMS = "/admin/forms";
 export const ADMIN_MY_FORMS = "/admin/my-forms";
+export const ADMIN_PUBLISHED_FORMS = "/admin/published-forms";
 export const ADMIN_APPROVALS = "/admin/approvals";
 export const ADMIN_REQUESTS = "/admin/requests";
 export const ADMIN_MY_REQUESTS = "/admin/my-requests";

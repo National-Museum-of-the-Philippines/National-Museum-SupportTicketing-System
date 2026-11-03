@@ -34,6 +34,7 @@ import {
   WorkspacePageHeader,
 } from "@/components/layout/workspace-ui";
 import { Button } from "@/components/ui/button";
+import { DynamicFormReport } from "@/components/form-report/DynamicFormReport";
 import { api } from "@/lib/api/client";
 import type { FormStatus, MyFormsAnalytics, NamedCount } from "@/lib/api/types";
 import { ensureAdminOnly } from "@/lib/admin-only-guard";
@@ -42,8 +43,13 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/my-forms")({
   beforeLoad: () => ensureAdminOnly(),
-  component: MyFormsPage,
+  component: MyFormsRoute,
 });
+
+/** Every admin, Resty and Renielle included, lays out their own report from the fields of their forms. */
+function MyFormsRoute() {
+  return <DynamicFormReport />;
+}
 
 const MAROON = "#7a1f2b";
 const SERVICE_COLORS = ["#7a1f2b", "#0f766e", "#d97706", "#7c3aed", "#db2777", "#2563eb"];

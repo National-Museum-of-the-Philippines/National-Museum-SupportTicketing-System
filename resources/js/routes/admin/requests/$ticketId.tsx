@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { BackLink, ActionPanel, FlowNotice, PageLoader, StatusBadge, WorkspacePageHeader } from "@/components/layout/workspace-ui";
+import { ClosedTicketView } from "@/components/tickets/ClosedTicketView";
 import { TicketRequestDetails } from "@/components/tickets/TicketRequestDetails";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,6 +130,10 @@ function TicketDetailPage() {
     return <PageLoader label="Loading request…" />;
   }
 
+  if (ticket.status === "closed") {
+    return <ClosedTicketView ticket={ticket} />;
+  }
+
   const isInApprovalQueue =
     ticket.status === "pending_approval" ||
     ticket.status === "for_process_owner" ||
@@ -154,7 +159,6 @@ function TicketDetailPage() {
     (awaitingTaskAssignment ||
       (!isInApprovalQueue &&
         !isAwaitingClient &&
-        ticket.status !== "closed" &&
         ticket.status !== "rejected"));
 
   return (
@@ -165,14 +169,12 @@ function TicketDetailPage() {
         title={ticket.ticketNumber}
         description={ticket.title}
         actions={
-          ticket.status !== "closed" ? (
-            <Link to={ADMIN_MESSAGES} search={{ ticket: ticketId }}>
-              <Button size="sm" variant="outline" className="gap-1.5">
-                <MessageCircle className="h-4 w-4" />
-                Request messages
-              </Button>
-            </Link>
-          ) : null
+          <Link to={ADMIN_MESSAGES} search={{ ticket: ticketId }}>
+            <Button size="sm" variant="outline" className="gap-1.5">
+              <MessageCircle className="h-4 w-4" />
+              Request messages
+            </Button>
+          </Link>
         }
         meta={
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -440,7 +442,7 @@ function TicketDetailPage() {
                 </FlowNotice>
               ) : null}
 
-              {isRequestManager && !isAwaitingClient && ticket.status !== "closed" ? (
+              {isRequestManager && !isAwaitingClient ? (
                 <ActionPanel
                   title="Update status"
                   description="The client marks the service complete when work is done, then submits feedback and closes the request."

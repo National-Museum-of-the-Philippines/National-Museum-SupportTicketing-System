@@ -21,14 +21,35 @@ class FormController extends Controller
         private PamanaEmployeeService $pamana,
     ) {}
 
-    public function published(): JsonResponse
+    public function published(Request $request): JsonResponse
     {
-        return response()->json(['items' => $this->forms->listPublishedForms()]);
+        $items = $this->forms->listPublishedForms();
+        $user = $this->authUser($request);
+        // An admin only sees the forms they created. Clients see every published form.
+        if ($user->role === 'admin') {
+            $items = array_values(array_filter($items, fn (array $f) => $this->creatorId($f) === $user->id));
+        }
+
+        return response()->json(['items' => $items]);
     }
 
-    public function publishedShow(string $id): JsonResponse
+    /** @param array<string, mixed> $form */
+    private function creatorId(array $form): string
     {
-        return response()->json(['form' => $this->forms->getPublishedForm($id)]);
+        $by = $form['createdBy'] ?? '';
+
+        return (string) (is_array($by) ? ($by['_id'] ?? '') : $by);
+    }
+
+    public function publishedShow(Request $request, string $id): JsonResponse
+    {
+        $form = $this->forms->getPublishedForm($id);
+        $user = $this->authUser($request);
+        if ($user->role === 'admin' && $this->creatorId($form) !== $user->id) {
+            throw new ApiException(404, 'Published form not found');
+        }
+
+        return response()->json(['form' => $form]);
     }
 
     public function publishedPdf(string $id): Response

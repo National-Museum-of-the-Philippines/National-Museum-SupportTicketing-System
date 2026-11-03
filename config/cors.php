@@ -7,6 +7,9 @@ return [
         [
             'http://127.0.0.1:5173',
             'http://localhost:5173',
+            'http://on-prem.x-dcb.net:5173',
+            'http://on-prem.x-dcb.net:4000',
+            'http://on-prem.x-dcb.net:8002',
             'http://127.0.0.1:8002',
             'http://localhost:8002',
             'http://api.nmp-ict.lan:5173',
@@ -15,6 +18,8 @@ return [
             'http://nmp-ict.lan:8002',
             'http://10.138.21.235:5173',
             'http://10.138.21.235:8002',
+            'http://202.90.136.222:5173',
+            'http://202.90.136.222:8002',
         ],
         array_map('trim', explode(',', (string) env('CORS_ORIGIN', ''))),
     )))),

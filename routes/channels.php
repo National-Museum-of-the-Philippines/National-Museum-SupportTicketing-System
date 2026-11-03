@@ -3,6 +3,8 @@
 use App\Support\AuthUser;
 use Illuminate\Support\Facades\Broadcast;
 
+Broadcast::routes(['prefix' => env('BROADCAST_ROUTE_PREFIX', 'support')]);
+
 Broadcast::channel('user.{id}', function (AuthUser $user, string $id) {
     return $user->id === $id;
 });

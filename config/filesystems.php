@@ -68,6 +68,12 @@ return [
                 'driver' => 'local',
                 'root' => env('UPLOAD_DIR') ?: base_path('backend/uploads'),
                 'visibility' => 'private',
+                // PHP-FPM runs as www-data and the build runs as another user, so keep new files
+                // group/world readable. Files are still only reachable through /uploads/{filename}.
+                'permissions' => [
+                    'file' => ['public' => 0644, 'private' => 0644],
+                    'dir' => ['public' => 0755, 'private' => 0755],
+                ],
                 'throw' => true,
                 'report' => false,
             ]

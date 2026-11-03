@@ -8,6 +8,12 @@ import type {
   ErrorLogRecord,
   ErrorLogSummary,
   FormRecord,
+  FormReport,
+  FormReportClosedTicket,
+  FormReportFormSummary,
+  FormReportSettings,
+  DynamicFormReport,
+  FormReportRequests,
   FormReviewDecision,
   MentionRecord,
   MessageableUser,
@@ -223,6 +229,10 @@ export const api = {
   // Published forms (Client)
   publishedForms: () =>
     apiFetch<{ items: FormRecord[] }>("/api/forms/published", undefined, "client"),
+  adminPublishedForms: () =>
+    apiFetch<{ items: FormRecord[] }>("/api/forms/published", undefined, "admin"),
+  getAdminPublishedForm: (id: string) =>
+    apiFetch<{ form: FormRecord }>(`/api/forms/published/${id}`, undefined, "admin"),
   getPublishedForm: (id: string) =>
     apiFetch<{ form: FormRecord }>(`/api/forms/published/${id}`, undefined, "client"),
   getPublishedFormDocument: (id: string) => apiFetchBlob(`/api/forms/published/${id}/document.pdf`),
@@ -272,6 +282,54 @@ export const api = {
       slot,
     );
   },
+  formReportForms: (slot?: PortalSlot) =>
+    apiFetch<{ items: FormReportFormSummary[] }>("/api/form-reports/forms", undefined, slot),
+  formReport: (formId: string, range: { from: string; to: string }, slot?: PortalSlot, closedOnly = false) =>
+    apiFetch<FormReport>(
+      `/api/form-reports/${formId}?${new URLSearchParams({ ...range, ...(closedOnly ? { closedOnly: "1" } : {}) })}`,
+      undefined,
+      slot,
+    ),
+  formReportClosed: (formId: string, range: { from: string; to: string }, slot?: PortalSlot) =>
+    apiFetch<{ items: FormReportClosedTicket[]; total: number }>(
+      `/api/form-reports/${formId}/closed?${new URLSearchParams(range)}`,
+      undefined,
+      slot,
+    ),
+  formReportSettings: (formId: string, slot?: PortalSlot) =>
+    apiFetch<FormReportSettings>(`/api/form-reports/${formId}/settings`, undefined, slot),
+  saveFormReportSettings: (formId: string, fields: Record<string, string>, slot?: PortalSlot) =>
+    apiFetch<FormReportSettings>(
+      `/api/form-reports/${formId}/settings`,
+      { method: "PUT", body: JSON.stringify({ fields }) },
+      slot,
+    ),
+  formReportDynamic: (formId: string, range: { from: string; to: string }, slot?: PortalSlot) =>
+    apiFetch<DynamicFormReport>(`/api/form-reports/${formId}/dynamic?${new URLSearchParams(range)}`, undefined, slot),
+  formReportRequests: (formId: string, params: Record<string, string>, slot?: PortalSlot) =>
+    apiFetch<FormReportRequests>(
+      `/api/form-reports/${formId}/requests?${new URLSearchParams(params)}`,
+      undefined,
+      slot,
+    ),
+  ticketHistory: (id: string, slot?: PortalSlot) =>
+    apiFetch<{ items: ActivityRecord[] }>(`/api/tickets/${id}/history`, undefined, slot),
+  adminActivity: (params?: { since?: string; limit?: number }, slot?: PortalSlot) => {
+    const q = new URLSearchParams();
+    if (params?.since) q.set("since", params.since);
+    if (params?.limit) q.set("limit", String(params.limit));
+    return apiFetch<{ items: ActivityRecord[] }>(
+      `/api/tickets/activity${q.size ? `?${q}` : ""}`,
+      undefined,
+      slot,
+    );
+  },
+  divisionStats: (slot?: PortalSlot, days?: number) =>
+    apiFetch<DivisionStatsResponse>(
+      `/api/tickets/division-stats${days ? `?days=${days}` : ""}`,
+      undefined,
+      slot,
+    ),
   listClientReview: (scope: "recommending" | "supervisor" | "action_officer", slot?: PortalSlot) =>
     apiFetch<{
       items: TicketRecord[];
@@ -522,4 +580,22 @@ export const api = {
     fd.append("file", file);
     return apiFetch<{ file: UploadedFileRecord }>("/api/uploads", { method: "POST", body: fd });
   },
+};
+
+export type DivisionStatsResponse = {
+  myDivision: string;
+  excluded: boolean;
+  divisions: {
+    name: string;
+    totalRequests: number;
+    closedRequests: number;
+    forms: {
+      _id: string;
+      title: string;
+      refNumber?: string;
+      totalRequests: number;
+      closedRequests: number;
+      fields: { label: string; options: { name: string; count: number }[] }[];
+    }[];
+  }[];
 };

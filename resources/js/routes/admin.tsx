@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import {
   BarChart3,
   ClipboardCheck,
+  FileCheck2,
   FilePenLine,
   FileStack,
   Inbox,
@@ -31,6 +32,7 @@ import {
   ADMIN_MY_FORMS,
   ADMIN_MY_REQUESTS,
   ADMIN_MY_REQUESTS_SUBMIT,
+  ADMIN_PUBLISHED_FORMS,
   ADMIN_REPORTS,
   ADMIN_REQUESTS,
   isAdminRole,
@@ -96,6 +98,7 @@ function AdminLayout() {
           items: [
             { to: ADMIN_FORMS, label: "Form Builder", icon: FilePenLine },
             { to: ADMIN_MY_FORMS, label: "My Forms", icon: FileStack },
+            { to: ADMIN_PUBLISHED_FORMS, label: "Published Forms", icon: FileCheck2 },
           ],
         },
         {
