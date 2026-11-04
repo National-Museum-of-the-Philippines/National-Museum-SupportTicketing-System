@@ -23,8 +23,10 @@ class FormController extends Controller
 
     public function published(Request $request): JsonResponse
     {
-        $items = $this->forms->listPublishedForms();
         $user = $this->authUser($request);
+        // Client submit picker only: a form disappears once a request has been filed with it.
+        $isClient = ! in_array($user->role, ['admin', 'super_admin', 'record_management'], true);
+        $items = $this->forms->listPublishedForms(unusedOnly: $isClient);
         // An admin only sees the forms they created. Clients see every published form.
         if ($user->role === 'admin') {
             $items = array_values(array_filter($items, fn (array $f) => $this->creatorId($f) === $user->id));

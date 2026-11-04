@@ -35,8 +35,8 @@ function formSaveErrorMessage(error: unknown, email?: string) {
   return error instanceof Error ? error.message : "Could not save form to server.";
 }
 
-function initialWizardState(): { draft: FormDraft; step: FormBuilderStepKey } {
-  const wip = loadFormBuilderWip();
+function initialWizardState(userId: string): { draft: FormDraft; step: FormBuilderStepKey } {
+  const wip = loadFormBuilderWip(userId);
   const step = FORM_BUILDER_STEPS.some((s) => s.key === wip?.step)
     ? (wip?.step as FormBuilderStepKey)
     : "general";
@@ -44,11 +44,18 @@ function initialWizardState(): { draft: FormDraft; step: FormBuilderStepKey } {
 }
 
 export function FormBuilderWizard() {
+  const { user } = useAuth();
+  if (!user) return null;
+  // Keyed by account so a different sign-in never inherits someone else's draft.
+  return <FormBuilderWizardInner key={user.id} userId={user.id} />;
+}
+
+function FormBuilderWizardInner({ userId }: { userId: string }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user, isAuthLoading, logout } = useAuth();
-  const [draft, setDraft] = useState<FormDraft>(() => initialWizardState().draft);
-  const [step, setStep] = useState<FormBuilderStepKey>(() => initialWizardState().step);
+  const [draft, setDraft] = useState<FormDraft>(() => initialWizardState(userId).draft);
+  const [step, setStep] = useState<FormBuilderStepKey>(() => initialWizardState(userId).step);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const stepIdx = FORM_BUILDER_STEPS.findIndex((s) => s.key === step);
@@ -62,8 +69,8 @@ export function FormBuilderWizard() {
   }, [user, isAuthLoading, navigate]);
 
   useEffect(() => {
-    saveFormBuilderWip(draft, step);
-  }, [draft, step]);
+    saveFormBuilderWip(userId, draft, step);
+  }, [userId, draft, step]);
 
   const update = useCallback(
     (patch: Partial<FormDraft> | ((current: FormDraft) => Partial<FormDraft>)) => {
@@ -127,7 +134,7 @@ export function FormBuilderWizard() {
       const { form } = await api.createForm(body);
       await qc.invalidateQueries({ queryKey: ["my-forms"] });
       toast.success(`"${form.title}" saved as draft`);
-      clearFormBuilderWip();
+      clearFormBuilderWip(userId);
       setDraft(newDraft());
       setStep("general");
     } catch (error) {
@@ -151,7 +158,7 @@ export function FormBuilderWizard() {
         description: "Open Records portal (separate tab) as a records officer → Pending Forms.",
         duration: 8000,
       });
-      clearFormBuilderWip();
+      clearFormBuilderWip(userId);
       setDraft(newDraft());
       setStep("general");
     } catch (error) {

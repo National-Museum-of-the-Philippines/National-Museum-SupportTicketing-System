@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Form;
+use App\Models\Ticket;
 use App\Support\ApiException;
 use App\Support\AuthUser;
 use App\Utils\FormFields;
@@ -347,12 +348,30 @@ class FormService
     }
 
     /**
+     * A published form is single-use: once any request was filed with it, it is
+     * no longer offered to clients. A rejected request does not use it up.
+     */
+    /** @return list<string> */
+    private function usedFormIds(): array
+    {
+        return Ticket::query()->where('status', '!=', 'rejected')->pluck('form_id')->map(fn ($id) => (string) $id)->unique()->values()->all();
+    }
+
+    public function isFormUsed(string $formId): bool
+    {
+        return Ticket::query()->where('form_id', $formId)->where('status', '!=', 'rejected')->exists();
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
-    public function listPublishedForms(): array
+    public function listPublishedForms(bool $unusedOnly = false): array
     {
+        $usedIds = $unusedOnly ? $this->usedFormIds() : [];
+
         return Form::query()
             ->where('status', 'published')
+            ->when($usedIds !== [], fn ($q) => $q->whereNotIn('id', $usedIds))
             ->orderByDesc('updated_at')
             ->get()
             ->map(fn (Form $f) => $f->toApiArray())

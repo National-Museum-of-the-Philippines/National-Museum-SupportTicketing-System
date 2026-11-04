@@ -228,15 +228,6 @@ export function UnifiedLoginPage() {
                   />
                   Remember me
                 </label>
-                <button
-                  type="button"
-                  className="text-sm font-medium text-[#8b1e2d] transition-colors hover:text-[#5c121c]"
-                  onClick={() =>
-                    setError("Contact your system administrator to reset your password.")
-                  }
-                >
-                  Forgot password?
-                </button>
               </div>
 
               {error ? (

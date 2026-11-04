@@ -33,6 +33,10 @@ class TicketService
     public function createTicketFromClient(AuthUser $user, string $formId, array $body): array
     {
         $form = $this->forms->getPublishedForm($formId);
+        $isClient = ! in_array($user->role, ['admin', 'super_admin', 'record_management'], true);
+        if ($isClient && $this->forms->isFormUsed($formId)) {
+            throw new ApiException(409, 'This form was already used and is no longer available');
+        }
         $answers = $body['answers'] ?? [];
         $subject = (string) ($answers['txt_subject'] ?? $answers['subject'] ?? $form['title']);
 
@@ -1028,7 +1032,7 @@ class TicketService
             'summary' => "Request {$ticket->ticket_number}: {$prev} → {$status}",
         ]);
 
-        $this->notifyTicketChange($actor, $ticket, "Request {$ticket->ticket_number} is now {$status}");
+        $this->notifyTicketChange($actor, $ticket, "Request {$ticket->ticket_number} is now ".str_replace('_', ' ', $status));
 
         return $ticket->fresh(['assignees'])->toApiArray();
     }
@@ -1327,6 +1331,38 @@ class TicketService
                     'params' => ['ticketId' => (string) $ticket->id],
                 ],
                 [$creatorId],
+            );
+        }
+
+        $this->notifyTicketAssignees($ticket, $base, $creatorId, $officers);
+    }
+
+    /**
+     * Assigned personnel hear about later changes too (client marked complete,
+     * feedback, closed, reopened) — not only the moment they were assigned.
+     *
+     * @param  array<string, mixed>  $base
+     * @param  list<array<string, mixed>>  $officers
+     */
+    private function notifyTicketAssignees(Ticket $ticket, array $base, string $creatorId, array $officers): void
+    {
+        $skip = array_merge([$creatorId, (string) ($base['actorId'] ?? '')], array_column($officers, 'userId'));
+        $ids = array_values(array_diff($ticket->assigneeIds(), $skip));
+        if ($ids === []) {
+            return;
+        }
+
+        $users = User::query()->whereIn('id', $ids)->get()->keyBy(fn (User $u) => (string) $u->id);
+        foreach ($ids as $id) {
+            $isAdmin = in_array((string) ($users->get($id)?->role ?? 'user'), ['admin', 'super_admin'], true);
+            $this->realtime->emitNotification(
+                [
+                    ...$base,
+                    'audience' => $isAdmin ? 'admin' : 'client',
+                    'to' => $isAdmin ? '/admin/requests/$ticketId' : '/client/requests/$ticketId',
+                    'params' => ['ticketId' => (string) $ticket->id],
+                ],
+                [$id],
             );
         }
     }

@@ -51,7 +51,6 @@ import { Route as AdminSubmitRequestRouteImport } from './routes/admin/submit-re
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
 import { Route as AdminPublishedFormsRouteImport } from './routes/admin/published-forms'
-import { Route as AdminMyFormsRouteImport } from './routes/admin/my-forms'
 import { Route as AdminMessagesRouteImport } from './routes/admin/messages'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminFormsRouteImport } from './routes/admin/forms'
@@ -286,11 +285,6 @@ const AdminPublishedFormsRoute = AdminPublishedFormsRouteImport.update({
   path: '/published-forms',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminMyFormsRoute = AdminMyFormsRouteImport.update({
-  id: '/my-forms',
-  path: '/my-forms',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminMessagesRoute = AdminMessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
@@ -408,7 +402,6 @@ export interface FileRoutesByFullPath {
   '/admin/forms': typeof AdminFormsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/messages': typeof AdminMessagesRoute
-  '/admin/my-forms': typeof AdminMyFormsRoute
   '/admin/published-forms': typeof AdminPublishedFormsRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -473,7 +466,6 @@ export interface FileRoutesByTo {
   '/admin/forms': typeof AdminFormsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/messages': typeof AdminMessagesRoute
-  '/admin/my-forms': typeof AdminMyFormsRoute
   '/admin/published-forms': typeof AdminPublishedFormsRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -539,7 +531,6 @@ export interface FileRoutesById {
   '/admin/forms': typeof AdminFormsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/messages': typeof AdminMessagesRoute
-  '/admin/my-forms': typeof AdminMyFormsRoute
   '/admin/published-forms': typeof AdminPublishedFormsRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -606,7 +597,6 @@ export interface FileRouteTypes {
     | '/admin/forms'
     | '/admin/login'
     | '/admin/messages'
-    | '/admin/my-forms'
     | '/admin/published-forms'
     | '/admin/reports'
     | '/admin/settings'
@@ -671,7 +661,6 @@ export interface FileRouteTypes {
     | '/admin/forms'
     | '/admin/login'
     | '/admin/messages'
-    | '/admin/my-forms'
     | '/admin/published-forms'
     | '/admin/reports'
     | '/admin/settings'
@@ -736,7 +725,6 @@ export interface FileRouteTypes {
     | '/admin/forms'
     | '/admin/login'
     | '/admin/messages'
-    | '/admin/my-forms'
     | '/admin/published-forms'
     | '/admin/reports'
     | '/admin/settings'
@@ -1095,13 +1083,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPublishedFormsRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/my-forms': {
-      id: '/admin/my-forms'
-      path: '/my-forms'
-      fullPath: '/admin/my-forms'
-      preLoaderRoute: typeof AdminMyFormsRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/messages': {
       id: '/admin/messages'
       path: '/messages'
@@ -1251,7 +1232,6 @@ interface AdminRouteChildren {
   AdminFormsRoute: typeof AdminFormsRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminMessagesRoute: typeof AdminMessagesRoute
-  AdminMyFormsRoute: typeof AdminMyFormsRoute
   AdminPublishedFormsRoute: typeof AdminPublishedFormsRoute
   AdminReportsRoute: typeof AdminReportsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
@@ -1272,7 +1252,6 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminFormsRoute: AdminFormsRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminMessagesRoute: AdminMessagesRoute,
-  AdminMyFormsRoute: AdminMyFormsRoute,
   AdminPublishedFormsRoute: AdminPublishedFormsRoute,
   AdminReportsRoute: AdminReportsRoute,
   AdminSettingsRoute: AdminSettingsRoute,

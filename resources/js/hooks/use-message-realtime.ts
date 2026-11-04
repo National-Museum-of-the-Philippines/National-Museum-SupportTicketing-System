@@ -207,19 +207,40 @@ export function useMessageRealtime(slot: PortalSlot) {
 
     const unsubNotification = onRealtimeNotification(slot, (event: RealtimeNotificationEvent) => {
       if (!matchesSlot(slot, event.audience)) return;
+
+      // Keep ticket lists, details and reports live whatever the event is.
+      if (event.type?.startsWith("ticket.")) {
+        for (const key of [
+          "my-tickets", "my-ticket", "ticket", "ticket-history", "assigned-tickets", "pending-tickets",
+          "all-tickets", "admin-tickets-pending", "admin-tickets-dashboard", "report-tickets",
+          "form-report-dynamic", "form-report-closed", "form-report-tickets", "form-report-requests",
+        ]) {
+          void qc.invalidateQueries({ queryKey: [key] });
+        }
+      }
+
       if (event.actorId && event.actorId === user.id) return;
 
+      // A ticket notification opens that ticket; anything else opens its list.
+      const ticketTo =
+        event.ticketId && (slot === "admin" || slot === "client")
+          ? slot === "admin"
+            ? "/admin/requests/$ticketId"
+            : "/client/requests/$ticketId"
+          : undefined;
+      const params = event.params ?? (ticketTo ? { ticketId: event.ticketId! } : undefined);
       const to =
-        event.to ??
+        (event.params || !ticketTo ? event.to : undefined) ??
+        ticketTo ??
         (slot === "admin" ? "/admin/approvals" : slot === "records" ? "/records/pending" : "/client/requests");
 
       addLiveNotification(slot, {
-        id: `${event.type ?? "n"}-${event.ticketId ?? event.formId ?? event.createdAt ?? Date.now()}`,
+        id: `${event.type ?? "n"}-${event.ticketId ?? event.formId ?? ""}-${event.createdAt ?? Date.now()}`,
         title: event.title,
         message: event.message,
         time: event.createdAt,
         to,
-        params: event.params,
+        params,
       });
 
       if (event.type === "ticket.assigned") {
@@ -230,7 +251,7 @@ export function useMessageRealtime(slot: PortalSlot) {
       toast(event.title, {
         description: event.message,
         action:
-          event.type === "ticket.assigned"
+          event.ticketId || event.type === "ticket.assigned"
             ? {
                 label: "Open",
                 onClick: () => {

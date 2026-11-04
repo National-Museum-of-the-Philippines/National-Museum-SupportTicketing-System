@@ -28,9 +28,9 @@ export function OverviewHero({
         className="absolute inset-0 bg-[linear-gradient(100deg,color-mix(in_oklab,var(--maroon-deep)_88%,transparent)_0%,color-mix(in_oklab,var(--maroon-deep)_60%,transparent)_40%,color-mix(in_oklab,var(--maroon-deep)_12%,transparent)_100%)]"
       />
       <div className="relative">
-        <h1 className="text-balance [text-shadow:0_1px_12px_rgb(0_0_0/0.35)] text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
+        <h1 className="text-balance [text-shadow:0_1px_12px_rgb(0_0_0/0.35)] font-serif text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
         {children ? (
-          <p className="mt-3 max-w-md text-[0.95rem] leading-relaxed text-white/90 [text-shadow:0_1px_8px_rgb(0_0_0/0.35)]">{children}</p>
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-white/90 [text-shadow:0_1px_8px_rgb(0_0_0/0.35)]">{children}</p>
         ) : null}
       </div>
       {actions ? <div className="relative flex flex-wrap gap-3">{actions}</div> : null}

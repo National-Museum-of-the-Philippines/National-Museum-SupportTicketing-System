@@ -13,7 +13,7 @@ import {
   OverviewStat,
   TodayActivity,
 } from "@/components/layout/dashboard-overview";
-import { ADMIN_APPROVALS, ADMIN_ASSIGNED, ADMIN_FORMS, ADMIN_MY_FORMS } from "@/lib/navigation";
+import { ADMIN_APPROVALS, ADMIN_ASSIGNED, ADMIN_FORMS } from "@/lib/navigation";
 import { AdminDashboardLegacy } from "./-dashboard-legacy";
 import { useAdminSession } from "@/lib/use-portal-session";
 
@@ -87,8 +87,8 @@ function AdminDashboardResty() {
         </OverviewHero>
         <div className="flex flex-col gap-4">
           <OverviewStat label="Requests to approve" hint="Client submissions" value={pendingApprovalCount} to={ADMIN_APPROVALS} icon={ClipboardCheck} loading={ticketsLoading} />
-          <OverviewStat label="Pending review" hint="Waiting on Records" value={pendingForms} to={ADMIN_MY_FORMS} icon={Clock} loading={formsLoading} />
-          <OverviewStat label="Draft forms" hint="Not yet submitted" value={draftForms} to={ADMIN_MY_FORMS} icon={FilePenLine} loading={formsLoading} />
+          <OverviewStat label="Pending review" hint="Waiting on Records" value={pendingForms} to={ADMIN_FORMS} icon={Clock} loading={formsLoading} />
+          <OverviewStat label="Draft forms" hint="Not yet submitted" value={draftForms} to={ADMIN_FORMS} icon={FilePenLine} loading={formsLoading} />
         </div>
       </div>
 
@@ -106,8 +106,8 @@ function AdminDashboardResty() {
           tone="danger"
           title={`${disapprovedForms.length} form${disapprovedForms.length === 1 ? "" : "s"} need revision`}
           action={
-            <ActionLink to={ADMIN_MY_FORMS} variant="outline">
-              Open My Forms
+            <ActionLink to={ADMIN_FORMS} variant="outline">
+              Open Form Builder
             </ActionLink>
           }
         >

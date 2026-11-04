@@ -419,7 +419,7 @@ export function DashboardShell({
             >
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="truncate text-base font-semibold tracking-tight text-slate-900">
+            <h1 className="truncate font-serif text-xl font-semibold tracking-tight text-slate-900">
               {pageTitle}
             </h1>
           </div>

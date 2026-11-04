@@ -14,7 +14,7 @@ import {
   StatCard,
   StatusBadge,
 } from "@/components/layout/workspace-ui";
-import { ADMIN_APPROVALS, ADMIN_ASSIGNED, ADMIN_FORMS, ADMIN_MY_FORMS } from "@/lib/navigation";
+import { ADMIN_APPROVALS, ADMIN_ASSIGNED, ADMIN_FORMS } from "@/lib/navigation";
 import { useAdminSession } from "@/lib/use-portal-session";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
@@ -87,8 +87,8 @@ export function AdminDashboardLegacy() {
           tone="danger"
           title={`${disapprovedForms.length} form${disapprovedForms.length === 1 ? "" : "s"} need revision`}
           action={
-            <ActionLink to={ADMIN_MY_FORMS} variant="outline">
-              Open My Forms
+            <ActionLink to={ADMIN_FORMS} variant="outline">
+              Open Form Builder
             </ActionLink>
           }
         >
@@ -130,7 +130,7 @@ export function AdminDashboardLegacy() {
           label="Pending review"
           value={pendingForms}
           hint="Waiting on Records"
-          to={ADMIN_MY_FORMS}
+          to={ADMIN_FORMS}
           icon={FileStack}
           accent="warning"
           loading={formsLoading}
@@ -139,7 +139,7 @@ export function AdminDashboardLegacy() {
           label="Draft forms"
           value={draftForms}
           hint="Not yet submitted"
-          to={ADMIN_MY_FORMS}
+          to={ADMIN_FORMS}
           icon={FilePenLine}
           loading={formsLoading}
         />

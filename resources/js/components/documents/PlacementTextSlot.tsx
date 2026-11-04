@@ -20,8 +20,8 @@ export const PlacementTemplateContext = createContext<TemplateDarkMap | null>(nu
 const SAME_ROW_Y_PCT = 2.5;
 const PAGE_RIGHT_PCT = 99.2;
 const PAGE_BOTTOM_PCT = 99;
-/** Smallest per-field shrink (≈9px at the 16px overlay size) before clipping. */
-const MIN_FONT_SCALE = 0.55;
+/** Smallest per-field shrink (≈13px at the 16px overlay size) before the text keeps flowing down. */
+const MIN_FONT_SCALE = 0.8;
 const FONT_SCALE_STEP = 0.05;
 /** Without a readable template, only use part of the gap to the next row. */
 const BLIND_GAP_SHARE = 0.6;
@@ -106,6 +106,7 @@ function fitSlot(anchor: HTMLElement, inner: HTMLElement, yPct: number, box: Slo
   anchor.style.transform = "";
   anchor.style.maxHeight = "";
   delete anchor.dataset.clipped;
+  delete anchor.dataset.overflow;
 
   const root = anchor.offsetParent as HTMLElement | null;
   const rootHeight = root?.clientHeight ?? 0;
@@ -133,12 +134,10 @@ function fitSlot(anchor: HTMLElement, inner: HTMLElement, yPct: number, box: Slo
   }
 
   if (height > room + 0.5) {
-    // Still too long at the smallest readable size: never spill onto the form.
-    // Cut on a whole line so no half-letters show at the cell edge.
-    const scaledLine = parseFloat(getComputedStyle(inner).lineHeight) || lineHeight;
-    height = Math.max(scaledLine, Math.floor(room / scaledLine) * scaledLine);
-    anchor.style.maxHeight = `${height.toFixed(1)}px`;
-    anchor.dataset.clipped = "true";
+    // Still too long at the smallest readable size: keep wrapping onto the lines
+    // below instead of cutting the answer off. Nothing is clipped or moved up.
+    anchor.dataset.overflow = "true";
+    return;
   }
 
   const shiftUp = Math.min(roomAbove, Math.max(0, height - roomBelow));
@@ -232,7 +231,7 @@ export function PlacementTextSlot({
     top: `${yPct}%`,
     width,
     maxWidth: width,
-    overflow: "hidden",
+    overflow: "visible",
     boxSizing: "border-box",
   };
 

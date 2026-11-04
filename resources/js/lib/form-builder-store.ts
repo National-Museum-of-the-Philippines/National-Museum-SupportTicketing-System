@@ -138,14 +138,18 @@ export function nextVariable(type: FieldType, fields: FormField[]) {
   return `{{${prefix}${String(used).padStart(2, "0")}}}`;
 }
 
-const FORM_BUILDER_WIP_KEY = "nmp-form-builder-wip";
+// The in-progress draft belongs to one account: it is stored per user so it never
+// shows up for the next person who signs in on the same browser.
+const FORM_BUILDER_WIP_PREFIX = "nmp-form-builder-wip";
+const wipKey = (userId: string) => `${FORM_BUILDER_WIP_PREFIX}:${userId}`;
 
 export type FormBuilderWip = { draft: FormDraft; step: string };
 
-export function loadFormBuilderWip(): FormBuilderWip | null {
+export function loadFormBuilderWip(userId: string): FormBuilderWip | null {
   if (typeof sessionStorage === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(FORM_BUILDER_WIP_KEY);
+    sessionStorage.removeItem(FORM_BUILDER_WIP_PREFIX); // old shared draft, could belong to anyone
+    const raw = sessionStorage.getItem(wipKey(userId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as FormBuilderWip;
     if (!parsed?.draft?.id || !parsed.step) return null;
@@ -155,16 +159,16 @@ export function loadFormBuilderWip(): FormBuilderWip | null {
   }
 }
 
-export function saveFormBuilderWip(draft: FormDraft, step: string) {
+export function saveFormBuilderWip(userId: string, draft: FormDraft, step: string) {
   if (typeof sessionStorage === "undefined") return;
   const payload = { draft, step };
   try {
-    sessionStorage.setItem(FORM_BUILDER_WIP_KEY, JSON.stringify(payload));
+    sessionStorage.setItem(wipKey(userId), JSON.stringify(payload));
   } catch {
     try {
       const { printTemplateImage: _image, ...rest } = draft;
       sessionStorage.setItem(
-        FORM_BUILDER_WIP_KEY,
+        wipKey(userId),
         JSON.stringify({ draft: { ...rest, printTemplateImage: null }, step }),
       );
     } catch {
@@ -173,7 +177,7 @@ export function saveFormBuilderWip(draft: FormDraft, step: string) {
   }
 }
 
-export function clearFormBuilderWip() {
+export function clearFormBuilderWip(userId: string) {
   if (typeof sessionStorage === "undefined") return;
-  sessionStorage.removeItem(FORM_BUILDER_WIP_KEY);
+  sessionStorage.removeItem(wipKey(userId));
 }

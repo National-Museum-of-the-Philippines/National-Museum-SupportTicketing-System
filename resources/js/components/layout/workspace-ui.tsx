@@ -212,11 +212,11 @@ export function DashboardHero({
       <div className="dashboard-hero-content flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           {eyebrow ? <span className="dashboard-eyebrow">{eyebrow}</span> : null}
-          <h1 className="mt-1.5 text-balance text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+          <h1 className="mt-2 text-balance font-serif text-2xl font-semibold tracking-tight text-white [text-shadow:0_1px_12px_rgb(0_0_0/0.35)] sm:text-3xl">
             {title}
           </h1>
           {description ? (
-            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/90 [text-shadow:0_1px_8px_rgb(0_0_0/0.35)]">
               {description}
             </p>
           ) : null}
@@ -331,7 +331,7 @@ export function StatCard({
           </span>
         ) : null}
       </div>
-      <p className="mt-3 text-2xl font-semibold tracking-tight tabular-nums">
+      <p className="mt-3 font-serif text-3xl font-semibold tracking-tight tabular-nums">
         <span className="stat-card-value">{loading ? "…" : value}</span>
       </p>
       {hint ? (
@@ -376,7 +376,7 @@ export function DataPanel({
     <div className={cn("data-panel data-panel-interactive overflow-hidden", className)}>
       <div className="data-panel-header flex items-center justify-between gap-3 border-b border-border/80">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold tracking-tight text-foreground">{title}</h2>
+          <h2 className="font-serif text-lg font-semibold tracking-tight text-foreground">{title}</h2>
           {description ? (
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
           ) : null}

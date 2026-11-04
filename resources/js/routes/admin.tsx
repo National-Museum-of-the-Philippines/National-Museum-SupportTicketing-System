@@ -6,7 +6,6 @@ import {
   ClipboardCheck,
   FileCheck2,
   FilePenLine,
-  FileStack,
   Inbox,
   LayoutDashboard,
   MessageCircle,
@@ -29,7 +28,6 @@ import {
   ADMIN_DASHBOARD,
   ADMIN_FORMS,
   ADMIN_MESSAGES,
-  ADMIN_MY_FORMS,
   ADMIN_MY_REQUESTS,
   ADMIN_MY_REQUESTS_SUBMIT,
   ADMIN_PUBLISHED_FORMS,
@@ -97,7 +95,6 @@ function AdminLayout() {
           title: "FORMS",
           items: [
             { to: ADMIN_FORMS, label: "Form Builder", icon: FilePenLine },
-            { to: ADMIN_MY_FORMS, label: "My Forms", icon: FileStack },
             { to: ADMIN_PUBLISHED_FORMS, label: "Published Forms", icon: FileCheck2 },
           ],
         },

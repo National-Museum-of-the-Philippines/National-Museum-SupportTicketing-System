@@ -105,7 +105,8 @@ export function ClientSubmitForm({
   const { data: formsData, isLoading: formsLoading } = useQuery({
     queryKey: ["published-forms"],
     queryFn: () => api.publishedForms(),
-    staleTime: Number.POSITIVE_INFINITY,
+    // Forms drop off the list once used, so always re-check when the page opens.
+    staleTime: 0,
   });
 
   const forms = formsData?.items ?? [];
@@ -247,6 +248,7 @@ export function ClientSubmitForm({
       profileAppliedFor.current = null;
       setAnswers({});
       void queryClient.invalidateQueries({ queryKey: ["my-tickets"] });
+      void queryClient.invalidateQueries({ queryKey: ["published-forms"] });
       void navigate({ to: successTo });
     },
     onError: (err: Error) => toast.error(err.message || "Submission failed"),
