@@ -12,6 +12,11 @@ class DivisionStatsService
 {
     private const CHOICE_TYPES = ['checkbox', 'radio', 'dropdown'];
 
+    /** Ticket statuses still waiting on an approver before work starts. */
+    private const PENDING_STATUSES = ['pending_approval', 'for_process_owner', 'for_client_approval'];
+
+    private const EMPTY_STATUS_COUNTS = ['pending' => 0, 'inProgress' => 0, 'resolved' => 0, 'closed' => 0, 'rejected' => 0];
+
     /** The Director-General's office and the regional component museums are not part of these statistics. */
     private const EXCLUDED_DIVISION_PATTERN = '/^OFFICE OF THE DIRECTOR-GENERAL$|^OFFICE OF THE DIRECTOR OF .+ NATIONAL MUSEUMS$/i';
 
@@ -58,12 +63,19 @@ class DivisionStatsService
             $divisions[$division]['name'] = $division;
             $divisions[$division]['totalRequests'] = ($divisions[$division]['totalRequests'] ?? 0) + $formTickets->count();
             $divisions[$division]['closedRequests'] = ($divisions[$division]['closedRequests'] ?? 0) + $closed->count();
+            $formStatus = $this->statusCounts($formTickets);
+            $divisionStatus = $divisions[$division]['statusCounts'] ?? self::EMPTY_STATUS_COUNTS;
+            foreach ($formStatus as $key => $count) {
+                $divisionStatus[$key] += $count;
+            }
+            $divisions[$division]['statusCounts'] = $divisionStatus;
             $divisions[$division]['forms'][] = [
                 '_id' => (string) $form->id,
                 'title' => $form->title,
                 'refNumber' => $form->ref_number,
                 'totalRequests' => $formTickets->count(),
                 'closedRequests' => $closed->count(),
+                'statusCounts' => $formStatus,
                 'fields' => $this->fieldCounts($form, $closed),
             ];
         }
@@ -71,7 +83,7 @@ class DivisionStatsService
         // An admin always sees their own division, even before it owns a form.
         $excluded = $myDivision !== '' && preg_match(self::EXCLUDED_DIVISION_PATTERN, $myDivision) === 1;
         if ($myDivision !== '' && ! $excluded && ! isset($divisions[$myDivision])) {
-            $divisions[$myDivision] = ['name' => $myDivision, 'totalRequests' => 0, 'closedRequests' => 0, 'forms' => []];
+            $divisions[$myDivision] = ['name' => $myDivision, 'totalRequests' => 0, 'closedRequests' => 0, 'statusCounts' => self::EMPTY_STATUS_COUNTS, 'forms' => []];
         }
 
         return ['divisions' => array_values($divisions), 'myDivision' => $myDivision, 'excluded' => $excluded];
@@ -92,6 +104,28 @@ class DivisionStatsService
         }
 
         return $division;
+    }
+
+    /**
+     * Groups ticket statuses the same way as the Status chart on the Reports page.
+     * Anything not pending, resolved, closed or rejected counts as in progress.
+     *
+     * @param  \Illuminate\Support\Collection<int, Ticket>  $tickets
+     * @return array{pending: int, inProgress: int, resolved: int, closed: int, rejected: int}
+     */
+    private function statusCounts($tickets): array
+    {
+        $counts = self::EMPTY_STATUS_COUNTS;
+        foreach ($tickets as $ticket) {
+            $key = match (true) {
+                in_array($ticket->status, self::PENDING_STATUSES, true) => 'pending',
+                in_array($ticket->status, ['resolved', 'closed', 'rejected'], true) => $ticket->status,
+                default => 'inProgress',
+            };
+            $counts[$key]++;
+        }
+
+        return $counts;
     }
 
     /**

@@ -16,6 +16,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { NmpLogo } from "@/components/layout/NmpLogo";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { FloatingMessenger } from "@/components/messages/FloatingMessenger";
+import { isMessagesPath, openMessenger } from "@/lib/messenger-store";
 import { MfaDialog } from "@/components/settings/MfaDialog";
 import { useAuth } from "@/lib/auth";
 import type { NotificationItem } from "@/lib/notifications";
@@ -138,19 +140,19 @@ export function DashboardShell({
   };
 
   const renderNavItem = (item: NavItem) => {
-    const active = itemIsActive(pathname, item.to);
+    // Messages opens the floating chat over the current page.
+    const opensChat = isMessagesPath(item.to);
+    const active = !opensChat && itemIsActive(pathname, item.to);
     const Icon = item.icon;
-    return (
-      <Link
-        key={item.to}
-        to={item.to}
-        className={cn(
-          "group flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
-          active
-            ? "sidebar-nav-active"
-            : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-        )}
-      >
+    const navClass = cn(
+      "group flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
+      active
+        ? "sidebar-nav-active"
+        : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+      opensChat && "w-full",
+    );
+    const content = (
+      <>
         <span className="flex min-w-0 items-center gap-2">
           {Icon ? (
             <span
@@ -175,6 +177,26 @@ export function DashboardShell({
             {item.badge > 9 ? "9+" : item.badge}
           </span>
         ) : null}
+      </>
+    );
+    if (opensChat) {
+      return (
+        <button
+          key={item.to}
+          type="button"
+          className={navClass}
+          onClick={() => {
+            setSidebarOpen(false);
+            openMessenger();
+          }}
+        >
+          {content}
+        </button>
+      );
+    }
+    return (
+      <Link key={item.to} to={item.to} className={navClass}>
+        {content}
       </Link>
     );
   };
@@ -473,6 +495,10 @@ export function DashboardShell({
           </div>
         </main>
       </div>
+
+      {activeSlot === "admin" || activeSlot === "client" ? (
+        <FloatingMessenger slot={activeSlot} />
+      ) : null}
     </div>
   );
 }

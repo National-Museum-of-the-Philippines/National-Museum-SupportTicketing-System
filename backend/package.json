@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "realtime": "bun src/realtime-server.ts",
-    "build": "bunx tsc",
+    "build": "bun x tsc",
     "start": "bun src/index.ts",
     "seed": "bun src/scripts/seed.ts",
     "pdf": "bun src/cli/generate-pdf.ts"

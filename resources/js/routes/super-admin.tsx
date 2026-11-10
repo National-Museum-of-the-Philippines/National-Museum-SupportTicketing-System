@@ -11,6 +11,7 @@ import {
   KeyRound,
   LayoutDashboard,
   Send,
+  Ticket,
   Shield,
   UserCircle,
   Users,
@@ -34,6 +35,7 @@ import {
   SUPER_ADMIN_PROFILE,
   SUPER_ADMIN_REPORTS,
   SUPER_ADMIN_ROLES,
+  SUPER_ADMIN_TICKETS,
   SUPER_ADMIN_USERS,
 } from "@/lib/navigation";
 
@@ -61,6 +63,10 @@ function SuperAdminLayout() {
             { to: SUPER_ADMIN_DASHBOARD, label: "Dashboard", icon: LayoutDashboard },
             { to: SUPER_ADMIN_REPORTS, label: "Reports & Analytics", icon: BarChart3 },
           ],
+        },
+        {
+          title: "TICKETS",
+          items: [{ to: SUPER_ADMIN_TICKETS, label: "All Tickets", icon: Ticket }],
         },
         {
           title: "REQUESTS",

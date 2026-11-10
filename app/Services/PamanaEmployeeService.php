@@ -564,6 +564,21 @@ class PamanaEmployeeService
         return $stored;
     }
 
+    /** PAMANA section id of a ticketing user (null when PAMANA has none). */
+    public function sectionIdForTicketingUser(User $user): ?string
+    {
+        $pamanaUserId = $this->pamanaStaffUserIdForTicketingUser($user);
+        if ($pamanaUserId === null) {
+            return null;
+        }
+        $id = $this->sectionIdFromStaffinformation($pamanaUserId);
+        if ($id === '') {
+            $id = $this->sectionIdForPamanaUser($pamanaUserId);
+        }
+
+        return $id !== '' ? $id : null;
+    }
+
     private function pamanaStaffUserIdForTicketingUser(User $user): ?string
     {
         $account = $this->authAccountForTicketingUser($user);
@@ -771,12 +786,23 @@ class PamanaEmployeeService
         if ($sectionId !== '') {
             $staffRole = $this->staffRoleForSection($sectionId);
             if ($staffRole) {
-                $recommendingOfficer = $staffRole['userId'] !== ''
-                    ? $this->resolveTicketingUserForStaffId($staffRole['userId'])
-                    : null;
-                $supervisor = $staffRole['supervisorId'] !== ''
-                    ? $this->resolveTicketingUserForStaffId($staffRole['supervisorId'])
-                    : null;
+                if ($pamanaUserId !== null && $staffRole['userId'] === $pamanaUserId) {
+                    // Requester IS the section's staff_role.user_id: no one to
+                    // recommend above them, so their supervisor_id recommends.
+                    $recommendingOfficer = $staffRole['supervisorId'] !== ''
+                        ? $this->resolveTicketingUserForStaffId($staffRole['supervisorId'])
+                        : null;
+                    // Same person, so forms that only require an Immediate Supervisor
+                    // still route to them; the approval chain skips the duplicate step.
+                    $supervisor = $recommendingOfficer;
+                } else {
+                    // staff_role.user_id = Recommending Officer,
+                    // staff_role.supervisor_id = Immediate Supervisor.
+                    $recommendingOfficer = $this->resolveTicketingUserForStaffId($staffRole['userId']);
+                    $supervisor = $staffRole['supervisorId'] !== ''
+                        ? $this->resolveTicketingUserForStaffId($staffRole['supervisorId'])
+                        : null;
+                }
             }
         }
 

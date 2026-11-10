@@ -425,7 +425,15 @@ export const api = {
         rejected: number;
       };
       recentActivities: ActivityRecord[];
+      insights: SuperAdminInsights;
+      incoming: SuperAdminIncoming;
     }>("/api/super-admin/overview", undefined, "admin"),
+  superAdminTickets: (params: Record<string, string>) =>
+    apiFetch<SuperAdminTicketsPage>(
+      `/api/super-admin/tickets?${new URLSearchParams(params)}`,
+      undefined,
+      "admin",
+    ),
 
   listMessageableUsers: (slot?: PortalSlot) =>
     apiFetch<{ users: MessageableUser[] }>("/api/messages/users", undefined, slot),
@@ -582,6 +590,14 @@ export const api = {
   },
 };
 
+export type StatusCounts = {
+  pending: number;
+  inProgress: number;
+  resolved: number;
+  closed: number;
+  rejected: number;
+};
+
 export type DivisionStatsResponse = {
   myDivision: string;
   excluded: boolean;
@@ -589,13 +605,63 @@ export type DivisionStatsResponse = {
     name: string;
     totalRequests: number;
     closedRequests: number;
+    statusCounts: StatusCounts;
     forms: {
       _id: string;
       title: string;
       refNumber?: string;
       totalRequests: number;
       closedRequests: number;
+      statusCounts: StatusCounts;
       fields: { label: string; options: { name: string; count: number }[] }[];
     }[];
+  }[];
+};
+
+export type SuperAdminTicketRow = {
+  _id: string;
+  ticketNumber: string;
+  formTitle: string;
+  status: string;
+  creatorName: string;
+  section: string | null;
+  assignees: string[];
+  createdAt: string | null;
+  overdueDays: number;
+};
+
+export type SuperAdminIncoming = {
+  counts: { all: number; new: number; assigned: number; overdue: number };
+  items: SuperAdminTicketRow[];
+};
+
+export type SuperAdminTicketsPage = {
+  items: SuperAdminTicketRow[];
+  total: number;
+  page: number;
+  limit: number;
+  counts: Record<"all" | "today" | "unassigned" | "overdue" | "reopened" | "closed", number>;
+  filters: {
+    sections: { id: string; name: string }[];
+    forms: string[];
+    staff: { id: string; name: string }[];
+  };
+};
+
+export type SuperAdminInsights = {
+  total: number;
+  overdue: number;
+  overdueAfterDays: number;
+  trends: Record<"pending" | "inProgress" | "completed" | "reopened", number[]>;
+  thisWeek: Record<"pending" | "inProgress" | "completed" | "reopened", number>;
+  monthly: { month: string; label: string; closed: number; avgDays: number | null }[];
+  divisions: {
+    name: string;
+    parent?: string;
+    total: number;
+    completed: number;
+    inProgress: number;
+    pending: number;
+    overdue: number;
   }[];
 };

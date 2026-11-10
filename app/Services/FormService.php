@@ -59,6 +59,8 @@ class FormService
             'summary' => 'Form "'.$form->title.'" created as draft',
         ]);
 
+        $this->realtime->emitFormsChanged(['formId' => (string) $form->id, 'status' => $form->status]);
+
         return $form->toApiArray();
     }
 
@@ -122,6 +124,8 @@ class FormService
         }
         $form->updated_by = $user->id;
         $form->save();
+
+        $this->realtime->emitFormsChanged(['formId' => (string) $form->id, 'status' => $form->status]);
 
         return $form->fresh()->toApiArray();
     }
@@ -207,6 +211,7 @@ class FormService
             [],
             ['record_management'],
         );
+        $this->realtime->emitFormsChanged(['formId' => (string) $form->id, 'status' => $form->status]);
 
         return $form->fresh()->toApiArray();
     }
@@ -343,6 +348,7 @@ class FormService
             [],
             ['record_management'],
         );
+        $this->realtime->emitFormsChanged(['formId' => (string) $updated->id, 'status' => $updated->status]);
 
         return $updated->toApiArray();
     }

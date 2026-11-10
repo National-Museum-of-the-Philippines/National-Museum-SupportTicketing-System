@@ -17,6 +17,7 @@ import { Route as ClientRouteImport } from './routes/client'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SuperAdminUsersRouteImport } from './routes/super-admin/users'
+import { Route as SuperAdminTicketsRouteImport } from './routes/super-admin/tickets'
 import { Route as SuperAdminSubmitRequestRouteImport } from './routes/super-admin/submit-request'
 import { Route as SuperAdminSettingsRouteImport } from './routes/super-admin/settings'
 import { Route as SuperAdminRolesRouteImport } from './routes/super-admin/roles'
@@ -110,6 +111,11 @@ const IndexRoute = IndexRouteImport.update({
 const SuperAdminUsersRoute = SuperAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => SuperAdminRoute,
+} as any)
+const SuperAdminTicketsRoute = SuperAdminTicketsRouteImport.update({
+  id: '/tickets',
+  path: '/tickets',
   getParentRoute: () => SuperAdminRoute,
 } as any)
 const SuperAdminSubmitRequestRoute = SuperAdminSubmitRequestRouteImport.update({
@@ -436,6 +442,7 @@ export interface FileRoutesByFullPath {
   '/super-admin/roles': typeof SuperAdminRolesRoute
   '/super-admin/settings': typeof SuperAdminSettingsRoute
   '/super-admin/submit-request': typeof SuperAdminSubmitRequestRoute
+  '/super-admin/tickets': typeof SuperAdminTicketsRoute
   '/super-admin/users': typeof SuperAdminUsersRoute
   '/admin/my-requests/$ticketId': typeof AdminMyRequestsTicketIdRoute
   '/admin/rbac/permissions': typeof AdminRbacPermissionsRoute
@@ -500,6 +507,7 @@ export interface FileRoutesByTo {
   '/super-admin/roles': typeof SuperAdminRolesRoute
   '/super-admin/settings': typeof SuperAdminSettingsRoute
   '/super-admin/submit-request': typeof SuperAdminSubmitRequestRoute
+  '/super-admin/tickets': typeof SuperAdminTicketsRoute
   '/super-admin/users': typeof SuperAdminUsersRoute
   '/admin/my-requests/$ticketId': typeof AdminMyRequestsTicketIdRoute
   '/admin/rbac/permissions': typeof AdminRbacPermissionsRoute
@@ -565,6 +573,7 @@ export interface FileRoutesById {
   '/super-admin/roles': typeof SuperAdminRolesRoute
   '/super-admin/settings': typeof SuperAdminSettingsRoute
   '/super-admin/submit-request': typeof SuperAdminSubmitRequestRoute
+  '/super-admin/tickets': typeof SuperAdminTicketsRoute
   '/super-admin/users': typeof SuperAdminUsersRoute
   '/admin/my-requests/$ticketId': typeof AdminMyRequestsTicketIdRoute
   '/admin/rbac/permissions': typeof AdminRbacPermissionsRoute
@@ -631,6 +640,7 @@ export interface FileRouteTypes {
     | '/super-admin/roles'
     | '/super-admin/settings'
     | '/super-admin/submit-request'
+    | '/super-admin/tickets'
     | '/super-admin/users'
     | '/admin/my-requests/$ticketId'
     | '/admin/rbac/permissions'
@@ -695,6 +705,7 @@ export interface FileRouteTypes {
     | '/super-admin/roles'
     | '/super-admin/settings'
     | '/super-admin/submit-request'
+    | '/super-admin/tickets'
     | '/super-admin/users'
     | '/admin/my-requests/$ticketId'
     | '/admin/rbac/permissions'
@@ -759,6 +770,7 @@ export interface FileRouteTypes {
     | '/super-admin/roles'
     | '/super-admin/settings'
     | '/super-admin/submit-request'
+    | '/super-admin/tickets'
     | '/super-admin/users'
     | '/admin/my-requests/$ticketId'
     | '/admin/rbac/permissions'
@@ -843,6 +855,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/super-admin/users'
       preLoaderRoute: typeof SuperAdminUsersRouteImport
+      parentRoute: typeof SuperAdminRoute
+    }
+    '/super-admin/tickets': {
+      id: '/super-admin/tickets'
+      path: '/tickets'
+      fullPath: '/super-admin/tickets'
+      preLoaderRoute: typeof SuperAdminTicketsRouteImport
       parentRoute: typeof SuperAdminRoute
     }
     '/super-admin/submit-request': {
@@ -1346,6 +1365,7 @@ interface SuperAdminRouteChildren {
   SuperAdminRolesRoute: typeof SuperAdminRolesRoute
   SuperAdminSettingsRoute: typeof SuperAdminSettingsRoute
   SuperAdminSubmitRequestRoute: typeof SuperAdminSubmitRequestRoute
+  SuperAdminTicketsRoute: typeof SuperAdminTicketsRoute
   SuperAdminUsersRoute: typeof SuperAdminUsersRoute
   SuperAdminMyRequestsTicketIdRoute: typeof SuperAdminMyRequestsTicketIdRoute
   SuperAdminMyRequestsIndexRoute: typeof SuperAdminMyRequestsIndexRoute
@@ -1363,6 +1383,7 @@ const SuperAdminRouteChildren: SuperAdminRouteChildren = {
   SuperAdminRolesRoute: SuperAdminRolesRoute,
   SuperAdminSettingsRoute: SuperAdminSettingsRoute,
   SuperAdminSubmitRequestRoute: SuperAdminSubmitRequestRoute,
+  SuperAdminTicketsRoute: SuperAdminTicketsRoute,
   SuperAdminUsersRoute: SuperAdminUsersRoute,
   SuperAdminMyRequestsTicketIdRoute: SuperAdminMyRequestsTicketIdRoute,
   SuperAdminMyRequestsIndexRoute: SuperAdminMyRequestsIndexRoute,

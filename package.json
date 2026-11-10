@@ -16,8 +16,8 @@
     "build:dev": "node-real ./node_modules/vite/bin/vite.js build --mode development",
     "preview": "node-real ./node_modules/vite/bin/vite.js preview --host 0.0.0.0 --port 5173 --strictPort",
     "verify": "bash ./scripts/verify-system.sh",
-    "lint": "bunx eslint resources/js vite.config.ts",
-    "format": "bunx prettier --write resources/js"
+    "lint": "bun x eslint resources/js vite.config.ts",
+    "format": "bun x prettier --write resources/js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

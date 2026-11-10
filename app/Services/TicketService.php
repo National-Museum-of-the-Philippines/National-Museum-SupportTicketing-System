@@ -261,7 +261,8 @@ class TicketService
 
         $total = (clone $builder)->count();
         $pendingQuery = Ticket::query()
-            ->whereIn('status', ['for_process_owner', 'pending_approval']);
+            ->whereIn('status', ['for_process_owner', 'pending_approval'])
+            ->where(fn ($q) => $q->whereNull('process_owner_phase')->orWhere('process_owner_phase', '!=', 'assignment'));
         $this->scopeToWorkflowActor($pendingQuery, $user);
         $pendingCount = $pendingQuery->count();
         $tickets = $builder->orderByDesc('updated_at')
@@ -1293,30 +1294,51 @@ class TicketService
         } else {
             // Workflow form: only the form's Action Officers hear about it, and the
             // officer whose turn it is gets a direct "action needed" notice.
+            // Officers can be admins (Approvals page) or staff using the client
+            // portal (For Review - Action Officer), so each gets their own audience.
             $currentActor = ActionOfficerWorkflow::currentActor($ticket, $officers);
             $officerIds = array_column($officers, 'userId');
-            $this->realtime->emitNotification(
-                [
-                    ...$base,
-                    'audience' => 'admin',
-                    'to' => '/admin/approvals',
-                ],
+            $this->emitPerPortal(
+                $base,
                 array_values(array_diff($officerIds, [$currentActor['userId'] ?? ''])),
+                '/admin/approvals',
+                '/client/for-review-action-officer',
             );
             if ($currentActor) {
                 $isManager = $currentActor['role'] === ActionOfficerWorkflow::ROLE_REQUEST_MANAGER;
-                $this->realtime->emitNotification(
+                $this->emitPerPortal(
                     [
                         ...$base,
                         'type' => 'ticket.workflow_action',
-                        'audience' => 'admin',
                         'message' => $isManager
                             ? 'Request '.$ticket->ticket_number.' is ready for Request Management — assign personnel'
                             : 'Request '.$ticket->ticket_number.' is awaiting your approval (Action Officer '.$currentActor['step'].')',
-                        'to' => '/admin/requests/$ticketId',
-                        'params' => ['ticketId' => (string) $ticket->id],
                     ],
                     [$currentActor['userId']],
+                    '/admin/requests/$ticketId',
+                    '/client/for-review-action-officer',
+                );
+            }
+        }
+
+        // Client-side approvers (Recommending Officer / Immediate Supervisor)
+        // whose turn it is also get a live update of their review queue.
+        if ($ticket->status === 'for_client_approval') {
+            $stage = (string) ($ticket->client_approval_stage ?? '');
+            $reviewerId = trim((string) ($stage === 'supervisor'
+                ? $ticket->immediate_supervisor_id
+                : $ticket->recommending_officer_id));
+            if ($reviewerId !== '' && $reviewerId !== $actor->id) {
+                $this->emitPerPortal(
+                    [
+                        ...$base,
+                        'type' => 'ticket.workflow_action',
+                        'message' => 'Request '.$ticket->ticket_number.' is awaiting your approval ('
+                            .($stage === 'supervisor' ? 'Immediate Supervisor' : 'Recommending Officer').')',
+                    ],
+                    [$reviewerId],
+                    '/admin/approvals',
+                    $stage === 'supervisor' ? '/client/for-review-supervisor' : '/client/for-review-recommending',
                 );
             }
         }
@@ -1335,6 +1357,48 @@ class TicketService
         }
 
         $this->notifyTicketAssignees($ticket, $base, $creatorId, $officers);
+    }
+
+    /**
+     * Send one notification to each user on the portal they use: admins on the
+     * admin portal, everyone else on the client portal.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  list<string>  $userIds
+     */
+    private function emitPerPortal(array $payload, array $userIds, string $adminTo, string $clientTo): void
+    {
+        $userIds = array_values(array_filter(array_unique($userIds), fn ($id) => trim((string) $id) !== ''));
+        if ($userIds === []) {
+            return;
+        }
+
+        $roles = User::query()->whereIn('id', $userIds)->pluck('role', 'id');
+        $adminIds = [];
+        $clientIds = [];
+        foreach ($userIds as $id) {
+            if (in_array((string) ($roles[$id] ?? 'user'), ['admin', 'super_admin'], true)) {
+                $adminIds[] = $id;
+            } else {
+                $clientIds[] = $id;
+            }
+        }
+
+        $ticketParams = isset($payload['ticketId']) ? ['ticketId' => (string) $payload['ticketId']] : null;
+        foreach ([['admin', $adminIds, $adminTo], ['client', $clientIds, $clientTo]] as [$audience, $ids, $to]) {
+            if ($ids === []) {
+                continue;
+            }
+            $this->realtime->emitNotification(
+                [
+                    ...$payload,
+                    'audience' => $audience,
+                    'to' => $to,
+                    ...(str_contains($to, '$ticketId') && $ticketParams ? ['params' => $ticketParams] : []),
+                ],
+                $ids,
+            );
+        }
     }
 
     /**

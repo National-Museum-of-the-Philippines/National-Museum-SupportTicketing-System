@@ -1,17 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { MessengerPage } from "@/components/messages/MessengerPage";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { openMessenger } from "@/lib/messenger-store";
+import { CLIENT_DASHBOARD } from "@/lib/navigation";
 
+/**
+ * Messages live in the floating chat window. This route stays so old links and
+ * bookmarks still work: it opens the chat and lands on the dashboard.
+ */
 export const Route = createFileRoute("/client/messages")({
   validateSearch: (search: Record<string, unknown>) => ({
     ticket: typeof search.ticket === "string" ? search.ticket : undefined,
     conversation: typeof search.conversation === "string" ? search.conversation : undefined,
   }),
-  component: ClientMessagesPage,
+  beforeLoad: ({ search }) => {
+    openMessenger({ ticketId: search.ticket, conversationId: search.conversation });
+    throw redirect({ to: CLIENT_DASHBOARD, replace: true });
+  },
 });
-
-function ClientMessagesPage() {
-  const { ticket, conversation } = Route.useSearch();
-  return (
-    <MessengerPage slot="client" initialTicketId={ticket} initialConversationId={conversation} />
-  );
-}

@@ -9,6 +9,7 @@ import { TicketRequestDetails } from "@/components/tickets/TicketRequestDetails"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { openMessenger } from "@/lib/messenger-store";
 import { api, ApiError } from "@/lib/api/client";
 import type { TicketStatus } from "@/lib/api/types";
 import { getTicketDivision } from "@/lib/ticket-details";
@@ -17,7 +18,7 @@ import {
   hasActionOfficerWorkflow,
   isCurrentWorkflowActor,
 } from "@/lib/ticket-workflow";
-import { ADMIN_APPROVALS, ADMIN_MESSAGES, ADMIN_REQUESTS } from "@/lib/navigation";
+import { ADMIN_APPROVALS, ADMIN_REQUESTS } from "@/lib/navigation";
 import { useAdminSession } from "@/lib/use-portal-session";
 import { cn } from "@/lib/utils";
 
@@ -169,12 +170,15 @@ function TicketDetailPage() {
         title={ticket.ticketNumber}
         description={ticket.title}
         actions={
-          <Link to={ADMIN_MESSAGES} search={{ ticket: ticketId }}>
-            <Button size="sm" variant="outline" className="gap-1.5">
-              <MessageCircle className="h-4 w-4" />
-              Request messages
-            </Button>
-          </Link>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => openMessenger({ ticketId })}
+          >
+            <MessageCircle className="h-4 w-4" />
+            Request messages
+          </Button>
         }
         meta={
           <div className="flex flex-wrap items-center gap-2 text-sm">

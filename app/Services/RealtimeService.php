@@ -61,6 +61,17 @@ class RealtimeService
         $this->send('notification', $payload, $channels);
     }
 
+    /**
+     * Silent "form lists changed" signal to every signed-in user (inbox channel),
+     * so Published Forms, Records queues and My Forms refresh without a reload.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function emitFormsChanged(array $payload): void
+    {
+        $this->send('forms.changed', $payload, [new PrivateChannel('inbox')]);
+    }
+
     public function refreshUserConversationRooms(string $userId): void
     {
         // Reverb delivers to the user's private channel at send time, so rooms
@@ -80,7 +91,7 @@ class RealtimeService
         try {
             broadcast(new RealtimeBroadcast($event, $payload, $channels));
         } catch (\Throwable $e) {
-            Log::debug('Realtime notify failed: '.$e->getMessage());
+            Log::warning('Realtime notify failed: '.$e->getMessage());
         }
     }
 

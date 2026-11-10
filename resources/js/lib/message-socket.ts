@@ -143,6 +143,14 @@ export function onRealtimeMention(slot: PortalSlot, handler: (mention: MentionRe
   return listen(slot, "mention", handler);
 }
 
+/** Silent signal that form lists changed (created, edited, submitted, approved…). */
+export function onRealtimeFormsChanged(
+  slot: PortalSlot,
+  handler: (event: { formId?: string; status?: string }) => void,
+) {
+  return listen(slot, "forms.changed", handler);
+}
+
 export function onRealtimeNotification(
   slot: PortalSlot,
   handler: (event: RealtimeNotificationEvent) => void,

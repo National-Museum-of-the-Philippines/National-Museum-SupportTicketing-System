@@ -124,6 +124,7 @@ Route::middleware(['jwt.auth', 'role:super_admin'])
 
 Route::middleware(['jwt.auth', 'role:admin'])->prefix('super-admin')->group(function () {
     Route::get('/overview', [SuperAdminController::class, 'overview']);
+    Route::get('/tickets', [SuperAdminController::class, 'tickets']);
 });
 
 // Browser errors from any signed-in portal user feed Error Monitoring.

@@ -1,7 +1,8 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { openMessenger } from "@/lib/messenger-store";
 import type { ConversationMessageRecord, ConversationRecord, MentionRecord, PokeRecord } from "@/lib/api/types";
 import { messageRoleLabel } from "@/lib/messages";
 import {
@@ -9,6 +10,7 @@ import {
   onRealtimeConversationUpdate,
   onRealtimeMessage,
   onRealtimeMention,
+  onRealtimeFormsChanged,
   onRealtimeNotification,
   onRealtimePoke,
   type RealtimeConversationEvent,
@@ -22,11 +24,8 @@ import { playMessageSound } from "@/lib/notification-sound";
 import { addPokeNotification } from "@/lib/poke-notifications";
 import {
   ADMIN_FORMS,
-  ADMIN_MESSAGES,
   ADMIN_MY_REQUESTS_SUBMIT,
-  CLIENT_MESSAGES,
   CLIENT_SUBMIT,
-  RECORDS_MESSAGES,
   RECORDS_MY_REQUESTS_SUBMIT,
   SUPER_ADMIN_MY_REQUESTS_SUBMIT,
   isAdminRole,
@@ -56,12 +55,6 @@ function matchesSlot(slot: PortalSlot, audience?: string) {
   return audience === slot;
 }
 
-function messagesPathForSlot(slot: PortalSlot) {
-  if (slot === "admin") return ADMIN_MESSAGES;
-  if (slot === "records") return RECORDS_MESSAGES;
-  return CLIENT_MESSAGES;
-}
-
 function appendMessage(
   items: ConversationMessageRecord[] | undefined,
   message: ConversationMessageRecord,
@@ -88,6 +81,29 @@ function patchConversations(
         : conv,
     )
     .sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
+}
+
+/** Every query that lists or shows forms, across Admin, Records and Client. */
+const FORM_QUERY_KEYS = [
+  "admin-form",
+  "admin-published-form",
+  "admin-published-forms",
+  "published-form",
+  "published-forms",
+  "my-forms",
+  "my-forms-analytics",
+  "form-review",
+  "form-report-forms",
+  "records-dashboard",
+  "records-pending",
+  "records-published",
+  "records-activity",
+];
+
+function invalidateFormQueries(qc: QueryClient) {
+  for (const key of FORM_QUERY_KEYS) {
+    void qc.invalidateQueries({ queryKey: [key] });
+  }
 }
 
 export function useMessageRealtime(slot: PortalSlot) {
@@ -159,11 +175,7 @@ export function useMessageRealtime(slot: PortalSlot) {
           description: preview,
           action: {
             label: "Open chat",
-            onClick: () =>
-              navigate({
-                to: messagesPathForSlot(slot),
-                search: { conversation: event.conversationId },
-              }),
+            onClick: () => openMessenger({ conversationId: event.conversationId }),
           },
         });
       }
@@ -184,7 +196,7 @@ export function useMessageRealtime(slot: PortalSlot) {
         action: poke.conversationId
           ? {
               label: "Open chat",
-              onClick: () => navigate({ to: messagesPathForSlot(slot) }),
+              onClick: () => openMessenger({ conversationId: poke.conversationId ?? undefined }),
             }
           : undefined,
       });
@@ -196,16 +208,15 @@ export function useMessageRealtime(slot: PortalSlot) {
         description: mention.preview,
         action: {
           label: "Open chat",
-          onClick: () =>
-            navigate({
-              to: messagesPathForSlot(slot),
-              search: { conversation: mention.conversationId },
-            }),
+          onClick: () => openMessenger({ conversationId: mention.conversationId }),
         },
       });
     });
 
+    const unsubForms = onRealtimeFormsChanged(slot, () => invalidateFormQueries(qc));
+
     const unsubNotification = onRealtimeNotification(slot, (event: RealtimeNotificationEvent) => {
+      if (event.type?.startsWith("form.")) invalidateFormQueries(qc);
       if (!matchesSlot(slot, event.audience)) return;
 
       // Keep ticket lists, details and reports live whatever the event is.
@@ -214,9 +225,12 @@ export function useMessageRealtime(slot: PortalSlot) {
           "my-tickets", "my-ticket", "ticket", "ticket-history", "assigned-tickets", "pending-tickets",
           "all-tickets", "admin-tickets-pending", "admin-tickets-dashboard", "report-tickets",
           "form-report-dynamic", "form-report-closed", "form-report-tickets", "form-report-requests",
+          "review-action-officer", "review-recommending", "review-supervisor",
         ]) {
           void qc.invalidateQueries({ queryKey: [key] });
         }
+        // A new request can change which forms count as "used".
+        invalidateFormQueries(qc);
       }
 
       if (event.actorId && event.actorId === user.id) return;
@@ -275,6 +289,7 @@ export function useMessageRealtime(slot: PortalSlot) {
       unsubPoke();
       unsubMention();
       unsubNotification();
+      unsubForms();
     };
   }, [user, slot, qc, navigate, fillingForm]);
 }

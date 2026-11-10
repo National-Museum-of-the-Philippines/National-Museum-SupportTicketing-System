@@ -2,6 +2,7 @@ export const LOGIN = "/login";
 
 export const SUPER_ADMIN_DASHBOARD = "/super-admin/dashboard";
 export const SUPER_ADMIN_REPORTS = "/super-admin/reports";
+export const SUPER_ADMIN_TICKETS = "/super-admin/tickets";
 export const SUPER_ADMIN_USERS = "/super-admin/users";
 export const SUPER_ADMIN_ROLES = "/super-admin/roles";
 export const SUPER_ADMIN_PERMISSIONS = "/super-admin/permissions";

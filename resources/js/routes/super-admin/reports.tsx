@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowRight, BarChart3, CheckCircle2, Download, MessageSquare, Ticket } from "lucide-react";
+import { ArrowDown, ArrowRight, BarChart3, CheckCircle2, ChevronRight, Download, MessageSquare, Ticket } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   DataPanel,
@@ -17,7 +17,7 @@ import {
   ReportCard,
   type Slice,
 } from "@/components/layout/report-cards";
-import { api, type DivisionStatsResponse } from "@/lib/api/client";
+import { api, type DivisionStatsResponse, type StatusCounts } from "@/lib/api/client";
 import type { TicketRecord } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth";
 import { useAdminSession } from "@/lib/use-portal-session";
@@ -127,6 +127,160 @@ function DivisionDonut({ division }: { division: DivisionStats }) {
         ) : null}
       </div>
     </div>
+  );
+}
+
+const STATUS_COLUMNS: { key: keyof StatusCounts; label: string; color: string }[] = [
+  { key: "pending", label: "Pending approval", color: "#e3a33b" },
+  { key: "inProgress", label: "In progress", color: "#c23b66" },
+  { key: "resolved", label: "Resolved", color: "#3e7cb1" },
+  { key: "closed", label: "Closed", color: "#5c0f1f" },
+  { key: "rejected", label: "Rejected", color: "#7b8794" },
+];
+
+function StatusCells({ counts, total }: { counts: StatusCounts; total: number }) {
+  return (
+    <>
+      {STATUS_COLUMNS.map((c) => (
+        <td key={c.key} className="px-3 py-3 text-right tabular-nums">
+          {counts[c.key] === 0 ? <span className="text-muted-foreground">0</span> : counts[c.key]}
+        </td>
+      ))}
+      <td className="px-3 py-3 text-right font-semibold tabular-nums sm:pr-5">{total}</td>
+    </>
+  );
+}
+
+function DivisionStatusTable({
+  divisions,
+  loading,
+}: {
+  divisions: DivisionStats[];
+  loading: boolean;
+}) {
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (name: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  const sorted = [...divisions].sort((a, b) => b.totalRequests - a.totalRequests);
+  const totals = STATUS_COLUMNS.reduce(
+    (acc, c) => ({ ...acc, [c.key]: sorted.reduce((n, d) => n + (d.statusCounts?.[c.key] ?? 0), 0) }),
+    {} as StatusCounts,
+  );
+  const grand = sorted.reduce((n, d) => n + d.totalRequests, 0);
+
+  return (
+    <DataPanel
+      title="Requests by division"
+      description="Status of requests on each division's published forms for the selected period. A form belongs to the division of the admin who created it. Select a division to see its forms."
+    >
+      <div className="overflow-x-auto">
+        <table className="data-table w-full min-w-[44rem] text-sm">
+          <thead className="text-left">
+            <tr>
+              <th className="px-4 py-3 sm:px-5">Division / Form</th>
+              {STATUS_COLUMNS.map((c) => (
+                <th key={c.key} className="px-3 py-3 text-right">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full" style={{ background: c.color }} />
+                    {c.label}
+                  </span>
+                </th>
+              ))}
+              <th className="px-3 py-3 text-right sm:pr-5">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <LoadingRows cols={7} />
+            ) : sorted.length === 0 ? (
+              <tr>
+                <td colSpan={7}>
+                  <EmptyState
+                    title="No division data yet"
+                    description="Divisions appear here once their admins publish forms."
+                  />
+                </td>
+              </tr>
+            ) : (
+              sorted.map((d) => {
+                const expanded = open.has(d.name);
+                return (
+                  <DivisionRows
+                    key={d.name}
+                    division={d}
+                    expanded={expanded}
+                    onToggle={() => toggle(d.name)}
+                  />
+                );
+              })
+            )}
+          </tbody>
+          {!loading && sorted.length > 1 ? (
+            <tfoot>
+              <tr className="border-t-2 border-border bg-muted/40 font-semibold">
+                <td className="px-4 py-3 sm:px-5">All divisions</td>
+                <StatusCells counts={totals} total={grand} />
+              </tr>
+            </tfoot>
+          ) : null}
+        </table>
+      </div>
+    </DataPanel>
+  );
+}
+
+function DivisionRows({
+  division,
+  expanded,
+  onToggle,
+}: {
+  division: DivisionStats;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <>
+      <tr className="border-t border-border/70">
+        <td className="px-4 py-3 sm:px-5">
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={expanded}
+            disabled={division.forms.length === 0}
+            className="inline-flex items-center gap-2 text-left font-semibold text-foreground disabled:cursor-default"
+          >
+            <ChevronRight
+              className={cn(
+                "h-4 w-4 shrink-0 transition-transform",
+                expanded && "rotate-90",
+                division.forms.length === 0 && "opacity-0",
+              )}
+            />
+            {division.name}
+            <span className="font-normal text-muted-foreground">
+              ({division.forms.length} form{division.forms.length === 1 ? "" : "s"})
+            </span>
+          </button>
+        </td>
+        <StatusCells counts={division.statusCounts} total={division.totalRequests} />
+      </tr>
+      {expanded
+        ? division.forms.map((f) => (
+            <tr key={f._id} className="border-t border-border/40 bg-muted/20 text-muted-foreground">
+              <td className="py-2.5 pl-12 pr-4 sm:pr-5">
+                <span className="text-foreground">{f.title}</span>
+                {f.refNumber ? <span className="ml-2 font-mono text-xs">{f.refNumber}</span> : null}
+              </td>
+              <StatusCells counts={f.statusCounts} total={f.totalRequests} />
+            </tr>
+          ))
+        : null}
+    </>
   );
 }
 
@@ -397,6 +551,10 @@ export function ReportsPage() {
       {statsLoading ? <LoadingRows cols={2} /> : null}
         </>
       )}
+
+      {resty ? (
+        <DivisionStatusTable divisions={divisionStats?.divisions ?? []} loading={statsLoading} />
+      ) : null}
 
       {resty ? (
         <section className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm">

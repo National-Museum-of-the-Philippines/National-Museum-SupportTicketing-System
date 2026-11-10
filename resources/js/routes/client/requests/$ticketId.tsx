@@ -16,8 +16,9 @@ import {
 } from "@/components/layout/workspace-ui";
 import { TicketRequestDetails } from "@/components/tickets/TicketRequestDetails";
 import { Button } from "@/components/ui/button";
+import { openMessenger } from "@/lib/messenger-store";
 import { api } from "@/lib/api/client";
-import { CLIENT_ASSIGNED, CLIENT_FEEDBACK, CLIENT_MESSAGES, CLIENT_REQUESTS } from "@/lib/navigation";
+import { CLIENT_ASSIGNED, CLIENT_FEEDBACK, CLIENT_REQUESTS } from "@/lib/navigation";
 import { getClientFeedbackUrl } from "@/lib/feedback-config";
 import { useAuth } from "@/lib/auth";
 import {
@@ -44,7 +45,13 @@ function TicketTrackPage() {
 
   const confirm = useMutation({
     mutationFn: (satisfied: boolean) => api.confirmTicket(ticketId, satisfied),
-    onSuccess: (_data, satisfied) => {
+    onSuccess: (res, satisfied) => {
+      // Show the new status right away instead of waiting for the refetch.
+      if (res?.ticket) {
+        qc.setQueryData(["my-ticket", ticketId], (old: { ticket?: unknown } | undefined) =>
+          old ? { ...old, ticket: { ...(old.ticket as object), ...res.ticket } } : old,
+        );
+      }
       toast.success(satisfied ? "Ticket closed" : "Request reopened");
       void qc.invalidateQueries({ queryKey: ["my-ticket", ticketId] });
       void qc.invalidateQueries({ queryKey: ["my-tickets"] });
@@ -77,7 +84,8 @@ function TicketTrackPage() {
   });
 
   const ticket = data?.ticket;
-  const activeTicket = feedback.data?.ticket ?? completeService.data?.ticket ?? ticket;
+  const activeTicket =
+    confirm.data?.ticket ?? feedback.data?.ticket ?? completeService.data?.ticket ?? ticket;
   const creatorId =
     typeof ticket?.creatorId === "string"
       ? ticket.creatorId
@@ -106,12 +114,15 @@ function TicketTrackPage() {
         meta={<StatusBadge status={activeTicket?.status ?? ticket.status} />}
         actions={
           activeTicket?.status !== "closed" ? (
-            <Link to={CLIENT_MESSAGES} search={{ ticket: ticketId }}>
-              <Button size="sm" variant="outline" className="gap-1.5">
-                <MessageCircle className="h-4 w-4" />
-                Request messages
-              </Button>
-            </Link>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => openMessenger({ ticketId })}
+            >
+              <MessageCircle className="h-4 w-4" />
+              Request messages
+            </Button>
           ) : null
         }
       />
@@ -214,7 +225,7 @@ function TicketTrackPage() {
             </ActionPanel>
           ) : null}
 
-          {ticket.status === "closed" && ticket.feedbackSubmitted ? (
+          {activeTicket?.status === "closed" && activeTicket.feedbackSubmitted ? (
             <FlowNotice tone="success" icon={CheckCircle2} title="Request closed">
               Thank you for your feedback.
             </FlowNotice>

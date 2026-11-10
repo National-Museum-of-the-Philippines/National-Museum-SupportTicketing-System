@@ -15,6 +15,7 @@ import {
 } from "@/components/layout/workspace-ui";
 import { TicketRequestDetails } from "@/components/tickets/TicketRequestDetails";
 import { Button } from "@/components/ui/button";
+import { openMessenger } from "@/lib/messenger-store";
 import { api } from "@/lib/api/client";
 import { getClientFeedbackUrl } from "@/lib/feedback-config";
 import type { PortalSlot } from "@/lib/sessions";
@@ -53,7 +54,13 @@ export function MyRequestDetailPage({
 
   const confirm = useMutation({
     mutationFn: (satisfied: boolean) => api.confirmTicket(ticketId, satisfied),
-    onSuccess: (_data, satisfied) => {
+    onSuccess: (res, satisfied) => {
+      // Show the new status right away instead of waiting for the refetch.
+      if (res?.ticket) {
+        qc.setQueryData(["my-ticket", slot, ticketId], (old: { ticket?: unknown } | undefined) =>
+          old ? { ...old, ticket: { ...(old.ticket as object), ...res.ticket } } : old,
+        );
+      }
       toast.success(satisfied ? "Ticket closed" : "Request reopened");
       void qc.invalidateQueries({ queryKey: ["my-ticket", slot, ticketId] });
       void qc.invalidateQueries({ queryKey: ["my-tickets", slot] });
@@ -86,7 +93,8 @@ export function MyRequestDetailPage({
   });
 
   const ticket = data?.ticket;
-  const activeTicket = feedback.data?.ticket ?? completeService.data?.ticket ?? ticket;
+  const activeTicket =
+    confirm.data?.ticket ?? feedback.data?.ticket ?? completeService.data?.ticket ?? ticket;
   const showFeedbackStep = activeTicket ? ticketNeedsFeedback(activeTicket) : false;
   const showCompleteButton = activeTicket
     ? ticketCanMarkComplete(activeTicket) && !showFeedbackStep
@@ -108,12 +116,15 @@ export function MyRequestDetailPage({
         meta={<StatusBadge status={activeTicket?.status ?? ticket.status} />}
         actions={
           messagesPath && activeTicket?.status !== "closed" ? (
-            <Link to={messagesPath} search={{ ticket: ticketId, conversation: undefined }}>
-              <Button size="sm" variant="outline" className="gap-1.5">
-                <MessageCircle className="h-4 w-4" />
-                Request messages
-              </Button>
-            </Link>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => openMessenger({ ticketId })}
+            >
+              <MessageCircle className="h-4 w-4" />
+              Request messages
+            </Button>
           ) : null
         }
       />
@@ -210,7 +221,7 @@ export function MyRequestDetailPage({
             </ActionPanel>
           ) : null}
 
-          {ticket.status === "closed" && ticket.feedbackSubmitted ? (
+          {activeTicket?.status === "closed" && activeTicket.feedbackSubmitted ? (
             <FlowNotice tone="success" icon={CheckCircle2} title="Request closed">
               Thank you for your feedback.
             </FlowNotice>

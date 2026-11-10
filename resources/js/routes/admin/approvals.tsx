@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { FileText, UserCheck } from "lucide-react";
@@ -75,6 +75,7 @@ function invalidateAdminTicketQueries(qc: ReturnType<typeof useQueryClient>) {
 
 function ApprovalsPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { canQuery, user } = useAdminSession();
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["pending-tickets"],
@@ -103,6 +104,7 @@ function ApprovalsPage() {
           : "Request approved",
       );
       invalidateAdminTicketQueries(qc);
+      if (ticket?.processOwnerPhase === "assignment") void navigate({ to: ADMIN_REQUESTS });
     },
     onError: (err: Error, id) => {
       const message = err instanceof ApiError ? err.message : "Could not approve request.";
@@ -110,6 +112,7 @@ function ApprovalsPage() {
         markReadyToAssign(qc, id);
         toast.info("Already approved — assign personnel next");
         invalidateAdminTicketQueries(qc);
+        void navigate({ to: ADMIN_REQUESTS });
         return;
       }
       toast.error(message);
@@ -130,7 +133,8 @@ function ApprovalsPage() {
     },
   });
 
-  const items = data?.items ?? [];
+  // Approved tickets awaiting assignment belong to Request Management, not this queue.
+  const items = (data?.items ?? []).filter((t) => !isReadyToAssign(t));
   const rejectTarget = items.find((t) => t._id === rejectId);
 
   return (
@@ -214,7 +218,12 @@ function ApprovalsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setViewTicket({ id: t._id, number: t.ticketNumber })}
+                          onClick={() =>
+                            setViewTicket({
+                              id: t._id,
+                              number: t.ticketNumber,
+                            })
+                          }
                         >
                           <FileText />
                           View file
