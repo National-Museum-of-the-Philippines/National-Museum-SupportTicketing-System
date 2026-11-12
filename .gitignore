@@ -27,3 +27,6 @@ dist.locked.*/
 /auth.json
 *.swp
 *.swo
+
+# User manuals are kept locally, not in git
+/docs/user-manuals/
