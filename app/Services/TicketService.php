@@ -1271,6 +1271,11 @@ class TicketService
         string $message,
         string $type = 'ticket.updated',
     ): void {
+        $this->realtime->emitTicketsChanged([
+            'ticketId' => (string) $ticket->id,
+            'status' => (string) $ticket->status,
+        ]);
+
         $base = [
             'actorId' => $actor->id,
             'type' => $type,

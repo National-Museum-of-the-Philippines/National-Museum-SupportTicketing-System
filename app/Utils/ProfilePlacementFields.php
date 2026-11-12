@@ -7,6 +7,7 @@ final class ProfilePlacementFields
     /** @var list<string> */
     public const PROFILE_PLACEMENT_VARIABLES = [
         '{{prof_division}}',
+        '{{prof_fullname}}',
         '{{prof_first}}',
         '{{prof_middle}}',
         '{{prof_last}}',
@@ -51,6 +52,7 @@ final class ProfilePlacementFields
 
         return [
             '{{prof_division}}' => trim((string) ($profile['division'] ?? '')),
+            '{{prof_fullname}}' => trim(implode(' ', array_filter([$firstName, $middleName, $lastName], fn ($p) => $p !== ''))),
             '{{prof_first}}' => $firstName,
             '{{prof_middle}}' => $middleName,
             '{{prof_last}}' => $lastName,

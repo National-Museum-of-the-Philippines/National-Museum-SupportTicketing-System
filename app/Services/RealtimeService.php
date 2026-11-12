@@ -72,6 +72,18 @@ class RealtimeService
         $this->send('forms.changed', $payload, [new PrivateChannel('inbox')]);
     }
 
+    /**
+     * Silent "ticket lists changed" signal to every signed-in user (inbox channel), so
+     * review queues, request lists, dashboards and reports refresh for everyone
+     * without a reload — whoever made the change and whoever it concerns.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function emitTicketsChanged(array $payload): void
+    {
+        $this->send('tickets.changed', $payload, [new PrivateChannel('inbox')]);
+    }
+
     public function refreshUserConversationRooms(string $userId): void
     {
         // Reverb delivers to the user's private channel at send time, so rooms

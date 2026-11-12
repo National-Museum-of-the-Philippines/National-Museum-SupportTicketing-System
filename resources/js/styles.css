@@ -776,6 +776,12 @@
     border-bottom: 1px solid color-mix(in oklab, var(--border) 85%, white);
   }
 
+  /* Status pills, links and buttons in a row stay on one line. */
+  .data-table td a,
+  .data-table td button {
+    white-space: nowrap;
+  }
+
   .data-table td {
     padding: 0.875rem 1rem;
     vertical-align: middle;
@@ -820,6 +826,7 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: capitalize;
+    white-space: nowrap;
     border: 1px solid transparent;
     box-shadow: 0 1px 3px color-mix(in oklab, var(--ink) 5%, transparent);
     backdrop-filter: blur(4px);

@@ -40,6 +40,36 @@ export function adminApprovalNotifications(
   }));
 }
 
+/** Tickets approved by the Action Officers and now waiting for personnel assignment (Request Management). */
+export function isAwaitingAssignment(t: { status: string; processOwnerPhase?: string | null }): boolean {
+  return ["for_process_owner", "pending_approval"].includes(t.status) && t.processOwnerPhase === "assignment";
+}
+
+export function adminAssignmentNotifications(
+  tickets: Array<{
+    _id: string;
+    ticketNumber: string;
+    formTitle: string;
+    creatorName: string;
+    status: string;
+    processOwnerPhase?: string | null;
+    updatedAt?: string;
+    createdAt: string;
+  }>,
+): NotificationItem[] {
+  return tickets
+    .filter(isAwaitingAssignment)
+    .slice(0, 8)
+    .map((t) => ({
+      id: `assign-${t._id}`,
+      title: t.ticketNumber,
+      message: `${t.formTitle} (${t.creatorName}) is approved — assign personnel`,
+      time: t.updatedAt ?? t.createdAt,
+      to: "/admin/requests/$ticketId",
+      params: { ticketId: t._id },
+    }));
+}
+
 export function recordsPendingNotifications(
   forms: Array<{
     _id: string;

@@ -7,6 +7,7 @@ export type ProfilePlacementField = {
 /** Always available in Print Template → Fields to place (auto-filled from requester). */
 export const DEFAULT_PROFILE_PLACEMENT_FIELDS: ProfilePlacementField[] = [
   { variable: "{{prof_division}}", label: "Division/Section", hint: "PAMANA staffinformation.section_id (auto-filled)" },
+  { variable: "{{prof_fullname}}", label: "Full Name", hint: "First + Middle + Last name as one value (auto-filled)" },
   { variable: "{{prof_first}}", label: "First Name", hint: "PAMANA staffinformation.first_name (auto-filled)" },
   { variable: "{{prof_middle}}", label: "Middle Name", hint: "PAMANA staffinformation.middle_name (auto-filled)" },
   { variable: "{{prof_last}}", label: "Last Name", hint: "PAMANA staffinformation.last_name (auto-filled)" },
@@ -55,6 +56,7 @@ export function buildRequesterProfileAnswerValues(
 
   return {
     "{{prof_division}}": (profile.division ?? "").trim(),
+    "{{prof_fullname}}": [firstName, middleName, lastName].filter(Boolean).join(" "),
     "{{prof_first}}": firstName,
     "{{prof_middle}}": middleName,
     "{{prof_last}}": lastName,

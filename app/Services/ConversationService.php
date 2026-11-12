@@ -141,7 +141,11 @@ class ConversationService
                 }
                 $ticket = $tickets->get($conv->ticket_id);
 
-                return $ticket && (string) $ticket->creator_id === $user->id;
+                // The client (creator) and any assigned personnel see the request group chat.
+                return $ticket && (
+                    (string) $ticket->creator_id === $user->id
+                    || in_array($user->id, $ticket->assigneeIds(), true)
+                );
             }
             if ($user->role === 'record_management') {
                 return ! $conv->is_closed && ! $conv->ticket_id;

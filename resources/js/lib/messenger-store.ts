@@ -38,6 +38,50 @@ export function toggleMessenger() {
   else openMessenger();
 }
 
+/**
+ * Unread messages per conversation, counted from live events while the app is open.
+ * The total drives the Messages badge in the sidebar; each chat row shows its own count.
+ */
+let unreadByConversation: Record<string, number> = {};
+const unreadListeners = new Set<() => void>();
+
+function setUnread(next: Record<string, number>) {
+  unreadByConversation = next;
+  unreadListeners.forEach((l) => l());
+}
+
+export function bumpUnreadMessages(conversationId: string) {
+  setUnread({
+    ...unreadByConversation,
+    [conversationId]: (unreadByConversation[conversationId] ?? 0) + 1,
+  });
+}
+
+export function clearConversationUnread(conversationId: string) {
+  if (!unreadByConversation[conversationId]) return;
+  const { [conversationId]: _read, ...rest } = unreadByConversation;
+  setUnread(rest);
+}
+
+function subscribeUnread(l: () => void) {
+  unreadListeners.add(l);
+  return () => unreadListeners.delete(l);
+}
+
+export function useUnreadByConversation(): Record<string, number> {
+  return useSyncExternalStore(
+    subscribeUnread,
+    () => unreadByConversation,
+    () => unreadByConversation,
+  );
+}
+
+/** Total unread across all chats (sidebar badge and launcher). */
+export function useUnreadMessages(): number {
+  const byConversation = useUnreadByConversation();
+  return Object.values(byConversation).reduce((sum, n) => sum + n, 0);
+}
+
 export function useMessengerState(): MessengerState {
   return useSyncExternalStore(
     (l) => {

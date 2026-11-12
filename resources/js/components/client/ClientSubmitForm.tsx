@@ -249,6 +249,10 @@ export function ClientSubmitForm({
       setAnswers({});
       void queryClient.invalidateQueries({ queryKey: ["my-tickets"] });
       void queryClient.invalidateQueries({ queryKey: ["published-forms"] });
+      // The submitter may also be an action officer / reviewer of this form.
+      for (const key of ["review-action-officer", "review-recommending", "review-supervisor", "assigned-tickets", "pending-tickets", "all-tickets"]) {
+        void queryClient.invalidateQueries({ queryKey: [key] });
+      }
       void navigate({ to: successTo });
     },
     onError: (err: Error) => toast.error(err.message || "Submission failed"),

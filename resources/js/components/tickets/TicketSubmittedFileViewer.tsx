@@ -71,6 +71,13 @@ export function TicketSubmittedFileViewer({
     if (!email && ticket.creatorEmail?.trim()) {
       answers["{{prof_email}}"] = ticket.creatorEmail.trim();
     }
+    // Tickets submitted before Full Name existed: combine the stored name parts.
+    if (!String(answers["{{prof_fullname}}"] ?? "").trim()) {
+      answers["{{prof_fullname}}"] = ["{{prof_first}}", "{{prof_middle}}", "{{prof_last}}"]
+        .map((key) => String(answers[key] ?? "").trim())
+        .filter(Boolean)
+        .join(" ");
+    }
     const division = String(answers["{{prof_division}}"] ?? "").trim();
     if (!division && ticket.division?.trim()) {
       answers["{{prof_division}}"] = ticket.division.trim();

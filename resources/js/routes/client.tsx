@@ -1,3 +1,4 @@
+import { useUnreadMessages } from "@/lib/messenger-store";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -88,8 +89,14 @@ function ClientLayout() {
     ],
     [liveNotifications, messageNotifications, pokeNotifications, assignedTickets?.items, tickets?.items],
   );
-  const actionCount = notifications.length;
+  // My Requests badge: only the user's own requests that need action (not every bell notice).
+  const actionCount = useMemo(
+    () => clientTicketNotifications(tickets?.items ?? []).length,
+    [tickets?.items],
+  );
   const feedbackCount = countTicketsNeedingFeedback(tickets?.items ?? []);
+
+  const unreadMessages = useUnreadMessages();
 
   return (
     <DashboardShell
@@ -109,7 +116,7 @@ function ClientLayout() {
               icon: UserCheck,
               badge: assignedTickets?.items.length,
             },
-            { to: CLIENT_MESSAGES, label: "Messages", icon: MessageCircle },
+            { to: CLIENT_MESSAGES, label: "Messages", icon: MessageCircle, badge: unreadMessages },
           ],
         },
         {

@@ -39,9 +39,13 @@ import { joinConversationRoom } from "@/lib/message-socket";
 import { subscribeMessageNotifications } from "@/lib/message-notifications";
 import { groupUsersByRole, messageRoleLabel } from "@/lib/messages";
 import {
+  bumpUnreadMessages,
+  clearConversationUnread,
   closeMessenger,
   openMessenger,
   useMessengerState,
+  useUnreadByConversation,
+  useUnreadMessages,
   type MessengerTarget,
 } from "@/lib/messenger-store";
 import type { PortalSlot } from "@/lib/sessions";
@@ -51,7 +55,7 @@ const SCROLL_BOTTOM_THRESHOLD = 72;
 /** Messages from the same sender within this window are visually grouped. */
 const GROUP_GAP_MS = 5 * 60 * 1000;
 
-/** Remembered per portal so reopening the window returns to the last chat. */
+/** Per portal: the chat that was open when the window was closed, so reopening resumes it. */
 const lastSelectedBySlot = new Map<PortalSlot, string>();
 
 type ChatRole = "admin" | "staff" | "client" | "records";
@@ -84,22 +88,16 @@ function creatorIdOf(ticket: TicketRecord | undefined): string | null {
 export function FloatingMessenger({ slot }: { slot: PortalSlot }) {
   const { user } = useAuth();
   const { open, request, target } = useMessengerState();
-  const [unread, setUnread] = useState(0);
-  const openRef = useRef(open);
-  openRef.current = open;
+  const unread = useUnreadMessages();
 
   // Count messages that arrive while the window is closed.
   useEffect(
     () =>
-      subscribeMessageNotifications((eventSlot) => {
-        if (eventSlot === slot && !openRef.current) setUnread((n) => n + 1);
+      subscribeMessageNotifications((eventSlot, payload) => {
+        if (eventSlot === slot) bumpUnreadMessages(payload.conversationId);
       }),
     [slot],
   );
-
-  useEffect(() => {
-    if (open) setUnread(0);
-  }, [open]);
 
   if (!user) return null;
 
@@ -155,7 +153,18 @@ function MessengerWindow({
     (id: string) => {
       setSelectedId(id);
       setView("thread");
-      lastSelectedBySlot.set(slot, id);
+    },
+    [],
+  );
+
+  // Remember the chat only if the window is closed while a chat is open, so the next
+  // open resumes it. Closing from the chat list (or after going back) opens the list.
+  const resumeRef = useRef<string | null>(null);
+  resumeRef.current = view === "thread" ? selectedId : null;
+  useEffect(
+    () => () => {
+      if (resumeRef.current) lastSelectedBySlot.set(slot, resumeRef.current);
+      else lastSelectedBySlot.delete(slot);
     },
     [slot],
   );
@@ -200,6 +209,12 @@ function MessengerWindow({
   }, []);
 
   const activeId = view === "thread" ? selectedId : null;
+  const unreadByConversation = useUnreadByConversation();
+
+  // Opening a chat marks it as read.
+  useEffect(() => {
+    if (activeId) clearConversationUnread(activeId);
+  }, [activeId]);
 
   useEffect(() => {
     if (activeId) joinConversationRoom(slot, activeId);
@@ -487,6 +502,7 @@ function MessengerWindow({
                   key={conv._id}
                   conversation={conv}
                   active={conv._id === selectedId}
+                  unread={unreadByConversation[conv._id] ?? 0}
                   onClick={() => selectConversation(conv._id)}
                 />
               ))}
@@ -982,10 +998,12 @@ function relativeShort(iso: string) {
 function ConversationRow({
   conversation,
   active,
+  unread = 0,
   onClick,
 }: {
   conversation: ConversationRecord;
   active: boolean;
+  unread?: number;
   onClick: () => void;
 }) {
   const preview = conversation.lastMessagePreview
@@ -1014,8 +1032,18 @@ function ConversationRow({
           {conversation.type === "ticket" && conversation.subtitle ? (
             <p className="truncate text-xs text-muted-foreground/90">{conversation.subtitle}</p>
           ) : null}
-          <p className="truncate text-xs text-muted-foreground">{preview}</p>
+          <p className={cn("truncate text-xs text-muted-foreground", unread > 0 && "font-semibold text-foreground")}>
+            {preview}
+          </p>
         </div>
+        {unread > 0 ? (
+          <span
+            className="ml-1 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground"
+            aria-label={`${unread} unread`}
+          >
+            {unread > 9 ? "9+" : unread}
+          </span>
+        ) : null}
       </div>
     </button>
   );

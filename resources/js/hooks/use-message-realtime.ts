@@ -1,6 +1,6 @@
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { openMessenger } from "@/lib/messenger-store";
 import type { ConversationMessageRecord, ConversationRecord, MentionRecord, PokeRecord } from "@/lib/api/types";
@@ -12,6 +12,7 @@ import {
   onRealtimeMention,
   onRealtimeFormsChanged,
   onRealtimeNotification,
+  onRealtimeTicketsChanged,
   onRealtimePoke,
   type RealtimeConversationEvent,
   type RealtimeMessageEvent,
@@ -106,11 +107,35 @@ function invalidateFormQueries(qc: QueryClient) {
   }
 }
 
+/** Every query that lists or shows tickets; refreshed whenever any ticket changes. */
+const TICKET_QUERY_KEYS = [
+  "my-tickets", "my-ticket", "ticket", "ticket-history", "assigned-tickets", "pending-tickets",
+  "all-tickets", "admin-tickets-pending", "admin-tickets-dashboard", "report-tickets",
+  "form-report-dynamic", "form-report-closed", "form-report-tickets", "form-report-requests",
+  "review-action-officer", "review-recommending", "review-supervisor",
+];
+
+function invalidateTicketQueries(qc: QueryClient) {
+  for (const key of TICKET_QUERY_KEYS) {
+    void qc.invalidateQueries({ queryKey: [key] });
+  }
+}
+
 export function useMessageRealtime(slot: PortalSlot) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const fillingForm = useRouterState({ select: (s) => isFormFillPath(s.location.pathname) });
+
+  // Realtime is paused while a form is being filled, so events can be missed. Catch up
+  // as soon as the user leaves the form page.
+  const wasFilling = useRef(false);
+  useEffect(() => {
+    if (wasFilling.current && !fillingForm) {
+      invalidateTicketQueries(qc);
+    }
+    wasFilling.current = fillingForm;
+  }, [fillingForm, qc]);
 
   useEffect(() => {
     if (!user || fillingForm) return;
@@ -123,12 +148,19 @@ export function useMessageRealtime(slot: PortalSlot) {
     getMessageSocket(slot);
 
     const unsubMessage = onRealtimeMessage(slot, (event: RealtimeMessageEvent) => {
-      qc.setQueryData(
-        ["conversation-messages", event.conversationId, slot],
-        (old: { items: ConversationMessageRecord[] } | undefined) => ({
-          items: appendMessage(old?.items, event.message),
-        }),
-      );
+      const messagesKey = ["conversation-messages", event.conversationId, slot];
+      if (qc.getQueryData(messagesKey)) {
+        qc.setQueryData(
+          messagesKey,
+          (old: { items: ConversationMessageRecord[] } | undefined) => ({
+            items: appendMessage(old?.items, event.message),
+          }),
+        );
+      } else {
+        // Nothing cached yet: seeding the cache with this one message would hide the
+        // earlier history, so fetch the full thread the next time it is opened.
+        void qc.invalidateQueries({ queryKey: messagesKey });
+      }
       qc.setQueryData(
         ["conversations", slot],
         (old: { items: ConversationRecord[] } | undefined) => {
@@ -214,6 +246,10 @@ export function useMessageRealtime(slot: PortalSlot) {
     });
 
     const unsubForms = onRealtimeFormsChanged(slot, () => invalidateFormQueries(qc));
+    const unsubTickets = onRealtimeTicketsChanged(slot, () => {
+      invalidateTicketQueries(qc);
+      invalidateFormQueries(qc);
+    });
 
     const unsubNotification = onRealtimeNotification(slot, (event: RealtimeNotificationEvent) => {
       if (event.type?.startsWith("form.")) invalidateFormQueries(qc);
@@ -221,14 +257,7 @@ export function useMessageRealtime(slot: PortalSlot) {
 
       // Keep ticket lists, details and reports live whatever the event is.
       if (event.type?.startsWith("ticket.")) {
-        for (const key of [
-          "my-tickets", "my-ticket", "ticket", "ticket-history", "assigned-tickets", "pending-tickets",
-          "all-tickets", "admin-tickets-pending", "admin-tickets-dashboard", "report-tickets",
-          "form-report-dynamic", "form-report-closed", "form-report-tickets", "form-report-requests",
-          "review-action-officer", "review-recommending", "review-supervisor",
-        ]) {
-          void qc.invalidateQueries({ queryKey: [key] });
-        }
+        invalidateTicketQueries(qc);
         // A new request can change which forms count as "used".
         invalidateFormQueries(qc);
       }
@@ -290,6 +319,7 @@ export function useMessageRealtime(slot: PortalSlot) {
       unsubMention();
       unsubNotification();
       unsubForms();
+      unsubTickets();
     };
   }, [user, slot, qc, navigate, fillingForm]);
 }

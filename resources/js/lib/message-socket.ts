@@ -151,6 +151,14 @@ export function onRealtimeFormsChanged(
   return listen(slot, "forms.changed", handler);
 }
 
+/** Silent signal that a ticket changed (submitted, approved, assigned, closed…). */
+export function onRealtimeTicketsChanged(
+  slot: PortalSlot,
+  handler: (event: { ticketId?: string; status?: string }) => void,
+) {
+  return listen(slot, "tickets.changed", handler);
+}
+
 export function onRealtimeNotification(
   slot: PortalSlot,
   handler: (event: RealtimeNotificationEvent) => void,

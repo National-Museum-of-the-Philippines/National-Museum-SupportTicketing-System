@@ -1,3 +1,4 @@
+import { useUnreadMessages } from "@/lib/messenger-store";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -19,7 +20,7 @@ import { useMessageRealtime } from "@/hooks/use-message-realtime";
 import { usePokeNotifications } from "@/hooks/use-poke-notifications";
 import { api } from "@/lib/api/client";
 import { useLiveNotifications } from "@/lib/live-notifications";
-import { adminApprovalNotifications, assignedPersonnelNotifications } from "@/lib/notifications";
+import { adminApprovalNotifications, adminAssignmentNotifications, assignedPersonnelNotifications } from "@/lib/notifications";
 import { ensurePortalRole } from "@/lib/portal-guard";
 import { useAdminSession } from "@/lib/use-portal-session";
 import {
@@ -64,16 +65,31 @@ function AdminLayout() {
     enabled: canQuery,
   });
 
+  // Same query as Request Management, so it stays live and shared. Used to flag
+  // approved requests that are waiting for this admin to assign personnel.
+  const { data: managedTickets } = useQuery({
+    queryKey: ["all-tickets"],
+    queryFn: () => api.listTickets({ scope: "management" }, "admin"),
+    enabled: canQuery,
+  });
+  const assignmentNotifications = useMemo(
+    () => adminAssignmentNotifications(managedTickets?.items ?? []),
+    [managedTickets?.items],
+  );
+
   const notifications = useMemo(
     () => [
       ...liveNotifications,
       ...messageNotifications,
       ...pokeNotifications,
       ...assignedPersonnelNotifications(assignedTickets?.items ?? [], "/admin/requests/$ticketId"),
+      ...assignmentNotifications,
       ...adminApprovalNotifications(tickets?.items ?? []),
     ],
-    [liveNotifications, messageNotifications, pokeNotifications, assignedTickets?.items, tickets?.items],
+    [liveNotifications, messageNotifications, pokeNotifications, assignedTickets?.items, tickets?.items, assignmentNotifications],
   );
+
+  const unreadMessages = useUnreadMessages();
 
   return (
     <DashboardShell
@@ -88,7 +104,7 @@ function AdminLayout() {
           items: [
             { to: ADMIN_DASHBOARD, label: "Dashboard", icon: LayoutDashboard },
             { to: ADMIN_REPORTS, label: "Reports", icon: BarChart3 },
-            { to: ADMIN_MESSAGES, label: "Messages", icon: MessageCircle },
+            { to: ADMIN_MESSAGES, label: "Messages", icon: MessageCircle, badge: unreadMessages },
           ],
         },
         {
@@ -107,7 +123,12 @@ function AdminLayout() {
               icon: ClipboardCheck,
               badge: tickets?.pendingCount ?? notifications.length,
             },
-            { to: ADMIN_REQUESTS, label: "Request Management", icon: Ticket },
+            {
+              to: ADMIN_REQUESTS,
+              label: "Request Management",
+              icon: Ticket,
+              badge: assignmentNotifications.length || undefined,
+            },
             { to: ADMIN_ASSIGNED, label: "Assigned to me", icon: UserCheck, badge: assignedTickets?.items.length },
             { to: ADMIN_MY_REQUESTS, label: "My Requests", icon: Inbox },
             { to: ADMIN_MY_REQUESTS_SUBMIT, label: "Submit Request", icon: Send },

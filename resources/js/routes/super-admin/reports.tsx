@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowRight, BarChart3, CheckCircle2, ChevronRight, Download, MessageSquare, Ticket } from "lucide-react";
+import { ArrowDown, ArrowRight, BarChart3, CheckCircle2, Download, MessageSquare, Ticket } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   DataPanel,
@@ -10,18 +10,13 @@ import {
   StatCard,
   WorkspacePageHeader,
 } from "@/components/layout/workspace-ui";
-import {
-  ColumnChart,
-  ColumnLabels,
-  DonutChart,
-  ReportCard,
-  type Slice,
-} from "@/components/layout/report-cards";
-import { api, type DivisionStatsResponse, type StatusCounts } from "@/lib/api/client";
+import { ColumnChart, ColumnLabels } from "@/components/layout/report-cards";
+import { api, type DivisionStatsResponse } from "@/lib/api/client";
 import type { TicketRecord } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth";
 import { useAdminSession } from "@/lib/use-portal-session";
 import { cn } from "@/lib/utils";
+import { DivisionRequests, DivisionsView } from "@/components/reports/DivisionReports";
 import { buttonVariants } from "@/components/ui/button";
 
 export const Route = createFileRoute("/super-admin/reports")({
@@ -130,160 +125,6 @@ function DivisionDonut({ division }: { division: DivisionStats }) {
   );
 }
 
-const STATUS_COLUMNS: { key: keyof StatusCounts; label: string; color: string }[] = [
-  { key: "pending", label: "Pending approval", color: "#e3a33b" },
-  { key: "inProgress", label: "In progress", color: "#c23b66" },
-  { key: "resolved", label: "Resolved", color: "#3e7cb1" },
-  { key: "closed", label: "Closed", color: "#5c0f1f" },
-  { key: "rejected", label: "Rejected", color: "#7b8794" },
-];
-
-function StatusCells({ counts, total }: { counts: StatusCounts; total: number }) {
-  return (
-    <>
-      {STATUS_COLUMNS.map((c) => (
-        <td key={c.key} className="px-3 py-3 text-right tabular-nums">
-          {counts[c.key] === 0 ? <span className="text-muted-foreground">0</span> : counts[c.key]}
-        </td>
-      ))}
-      <td className="px-3 py-3 text-right font-semibold tabular-nums sm:pr-5">{total}</td>
-    </>
-  );
-}
-
-function DivisionStatusTable({
-  divisions,
-  loading,
-}: {
-  divisions: DivisionStats[];
-  loading: boolean;
-}) {
-  const [open, setOpen] = useState<Set<string>>(new Set());
-  const toggle = (name: string) =>
-    setOpen((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-  const sorted = [...divisions].sort((a, b) => b.totalRequests - a.totalRequests);
-  const totals = STATUS_COLUMNS.reduce(
-    (acc, c) => ({ ...acc, [c.key]: sorted.reduce((n, d) => n + (d.statusCounts?.[c.key] ?? 0), 0) }),
-    {} as StatusCounts,
-  );
-  const grand = sorted.reduce((n, d) => n + d.totalRequests, 0);
-
-  return (
-    <DataPanel
-      title="Requests by division"
-      description="Status of requests on each division's published forms for the selected period. A form belongs to the division of the admin who created it. Select a division to see its forms."
-    >
-      <div className="overflow-x-auto">
-        <table className="data-table w-full min-w-[44rem] text-sm">
-          <thead className="text-left">
-            <tr>
-              <th className="px-4 py-3 sm:px-5">Division / Form</th>
-              {STATUS_COLUMNS.map((c) => (
-                <th key={c.key} className="px-3 py-3 text-right">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full" style={{ background: c.color }} />
-                    {c.label}
-                  </span>
-                </th>
-              ))}
-              <th className="px-3 py-3 text-right sm:pr-5">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <LoadingRows cols={7} />
-            ) : sorted.length === 0 ? (
-              <tr>
-                <td colSpan={7}>
-                  <EmptyState
-                    title="No division data yet"
-                    description="Divisions appear here once their admins publish forms."
-                  />
-                </td>
-              </tr>
-            ) : (
-              sorted.map((d) => {
-                const expanded = open.has(d.name);
-                return (
-                  <DivisionRows
-                    key={d.name}
-                    division={d}
-                    expanded={expanded}
-                    onToggle={() => toggle(d.name)}
-                  />
-                );
-              })
-            )}
-          </tbody>
-          {!loading && sorted.length > 1 ? (
-            <tfoot>
-              <tr className="border-t-2 border-border bg-muted/40 font-semibold">
-                <td className="px-4 py-3 sm:px-5">All divisions</td>
-                <StatusCells counts={totals} total={grand} />
-              </tr>
-            </tfoot>
-          ) : null}
-        </table>
-      </div>
-    </DataPanel>
-  );
-}
-
-function DivisionRows({
-  division,
-  expanded,
-  onToggle,
-}: {
-  division: DivisionStats;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <>
-      <tr className="border-t border-border/70">
-        <td className="px-4 py-3 sm:px-5">
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-expanded={expanded}
-            disabled={division.forms.length === 0}
-            className="inline-flex items-center gap-2 text-left font-semibold text-foreground disabled:cursor-default"
-          >
-            <ChevronRight
-              className={cn(
-                "h-4 w-4 shrink-0 transition-transform",
-                expanded && "rotate-90",
-                division.forms.length === 0 && "opacity-0",
-              )}
-            />
-            {division.name}
-            <span className="font-normal text-muted-foreground">
-              ({division.forms.length} form{division.forms.length === 1 ? "" : "s"})
-            </span>
-          </button>
-        </td>
-        <StatusCells counts={division.statusCounts} total={division.totalRequests} />
-      </tr>
-      {expanded
-        ? division.forms.map((f) => (
-            <tr key={f._id} className="border-t border-border/40 bg-muted/20 text-muted-foreground">
-              <td className="py-2.5 pl-12 pr-4 sm:pr-5">
-                <span className="text-foreground">{f.title}</span>
-                {f.refNumber ? <span className="ml-2 font-mono text-xs">{f.refNumber}</span> : null}
-              </td>
-              <StatusCells counts={f.statusCounts} total={f.totalRequests} />
-            </tr>
-          ))
-        : null}
-    </>
-  );
-}
-
 const PERIODS = [
   { value: "7d", label: "Last 7 days", days: 7 },
   { value: "30d", label: "Last 30 days", days: 30 },
@@ -349,6 +190,29 @@ export function ReportsPage() {
   });
 
   const all = allTickets ?? [];
+  const [tab, setTab] = useState<"overview" | "divisions" | "requests">("overview");
+  const [sectionId, setSectionId] = useState("");
+  const { data: overview } = useQuery({
+    queryKey: ["report-super-admin-overview"],
+    queryFn: () => api.superAdminOverview(),
+    enabled: canQuery,
+  });
+  const { data: sectionList } = useQuery({
+    queryKey: ["report-sections"],
+    queryFn: () => api.superAdminTickets({ limit: "1" }),
+    enabled: canQuery,
+    select: (r) => r.filters.sections,
+  });
+  const insights = overview?.insights;
+  const sections = sectionList ?? [];
+  const activeSection = sections.find((s) => s.id === sectionId);
+  const openDivision = (name: string) => {
+    const match = sections.find((s) => s.name.toLowerCase() === name.toLowerCase());
+    if (match) {
+      setSectionId(match.id);
+      setTab("requests");
+    }
+  };
 
   const periodDays = PERIODS.find((p) => p.value === period)?.days ?? undefined;
   const { data: divisionStats, isLoading: statsLoading } = useQuery({
@@ -365,61 +229,6 @@ export function ReportsPage() {
     return base.filter((t) => new Date(t.createdAt).getTime() >= since);
   }, [allTickets, period]);
 
-  const statusSlices = useMemo<Slice[]>(() => {
-    const pending = items.filter((t) => PENDING_STATUSES.includes(t.status)).length;
-    const closed = items.filter((t) => t.status === "closed").length;
-    const rejected = items.filter((t) => t.status === "rejected").length;
-    const inProgress = items.length - pending - closed - rejected;
-    return [
-      { name: "Pending approval", count: pending, color: "#e3a33b" },
-      { name: "In progress", count: inProgress, color: "#c23b66" },
-      { name: "Closed", count: closed, color: "#5c0f1f" },
-      ...(rejected > 0 ? [{ name: "Rejected", count: rejected, color: "#7b8794" }] : []),
-    ];
-  }, [items]);
-
-  // The "Type" choices on the request form (Information System, Website Update, ...), counted
-  // only for tickets the client has closed. The server does the counting per form field.
-  const typeSlices = useMemo<Slice[]>(() => {
-    const counts = new Map<string, number>();
-    for (const division of divisionStats?.divisions ?? []) {
-      for (const form of division.forms) {
-        for (const field of form.fields) {
-          if (!/^type\b/i.test(field.label.trim())) continue;
-          for (const o of field.options) {
-            const key = o.name.trim().toLowerCase();
-            counts.set(key, (counts.get(key) ?? 0) + o.count);
-          }
-        }
-      }
-    }
-    // Always the six request types, in this order, even before anything is counted.
-    // Options from other forms (for example "Attendance Sheet") are not part of this chart.
-    return DEFAULT_REQUEST_TYPES.map((name, i) => ({
-      name,
-      count: counts.get(name.toLowerCase()) ?? 0,
-      color: TYPE_COLORS[i],
-    }));
-  }, [divisionStats]);
-
-  const resolve = useMemo(() => {
-    // No closed-at timestamp is stored, so the last update of a closed ticket stands in for it.
-    const spans = items
-      .filter((t) => t.status === "closed")
-      .map((t) => (new Date(t.updatedAt).getTime() - new Date(t.createdAt).getTime()) / DAY_MS)
-      .filter((d) => d >= 0);
-    const bucket = (lo: number, hi: number) => spans.filter((d) => d >= lo && d < hi).length;
-    return {
-      bars: [
-        { label: "Under 1 day", value: bucket(0, 1) },
-        { label: "1 to 3 days", value: bucket(1, 3) },
-        { label: "3 to 7 days", value: bucket(3, 7) },
-        { label: "7+ days", value: bucket(7, Infinity) },
-      ],
-      average: spans.length ? spans.reduce((a, b) => a + b, 0) / spans.length : null,
-    };
-  }, [items]);
-
   const feedbackItems = items
     .filter((t) => t.feedbackSubmitted)
     .sort(
@@ -429,7 +238,6 @@ export function ReportsPage() {
     );
   const ratings = feedbackItems.map((t) => t.feedbackRating).filter((r): r is number => !!r);
   const avgRating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
-  const topType = [...typeSlices].sort((a, b) => b.count - a.count)[0];
 
   return (
     <div className="page-shell">
@@ -474,30 +282,62 @@ export function ReportsPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <ReportCard title="Status">
-          <DonutChart slices={statusSlices} />
-        </ReportCard>
-        <ReportCard title="By request type">
-          <DonutChart slices={typeSlices} label="closed" />
-          <p className="mt-4 text-sm text-muted-foreground">
-            {statsLoading
-              ? "Loading…"
-              : topType && topType.count > 0
-                ? `${topType.name} is the most requested type. Counted when the client closes the ticket.`
-                : "Requests are counted here once the client closes the ticket."}
-          </p>
-        </ReportCard>
-        <ReportCard title="Time to resolve">
-          <ColumnChart bars={resolve.bars} />
-          <ColumnLabels labels={resolve.bars.map((b) => b.label)} />
-          <p className="mt-4 text-sm text-muted-foreground">
-            {resolve.average == null
-              ? "No closed requests yet."
-              : `Average: ${resolve.average.toFixed(1)} days from submission to closed.`}
-          </p>
-        </ReportCard>
+      <div className="flex flex-wrap items-center gap-2 border-b border-border/70 pb-3">
+        {(
+          [
+            ["overview", "Overview"],
+            ["divisions", "Divisions"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={cn(
+              "h-9 rounded-xl px-4 text-sm font-semibold transition-colors",
+              tab === key ? "bg-maroon text-white" : "text-muted-foreground hover:bg-muted",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+        <FormSelect
+          aria-label="Choose a division"
+          value={sectionId}
+          onChange={(e) => {
+            setSectionId(e.target.value);
+            setTab(e.target.value ? "requests" : "overview");
+          }}
+          className={cn(
+            "w-auto min-w-[14rem] max-w-[22rem]",
+            tab === "requests" && "border-maroon ring-1 ring-maroon/30",
+          )}
+        >
+          <option value="">Division requests…</option>
+          {sections.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </FormSelect>
       </div>
+
+      {tab === "divisions" && insights ? (
+        <DivisionsView insights={insights} onOpen={openDivision} />
+      ) : null}
+      {tab === "requests" && activeSection ? (
+        <DivisionRequests sectionId={activeSection.id} sectionName={activeSection.name} />
+      ) : null}
+
+      {tab === "overview" && insights ? (
+        <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm">
+          <h2 className="text-lg font-bold text-foreground">Requests per month</h2>
+          <p className="mb-3 text-xs text-muted-foreground">Closed requests across all divisions</p>
+          <ColumnChart bars={insights.monthly.map((m) => ({ label: m.label, value: m.closed }))} />
+          <ColumnLabels labels={insights.monthly.map((m) => m.label)} />
+        </div>
+      ) : null}
+
         </>
       ) : (
         <>
@@ -552,11 +392,7 @@ export function ReportsPage() {
         </>
       )}
 
-      {resty ? (
-        <DivisionStatusTable divisions={divisionStats?.divisions ?? []} loading={statsLoading} />
-      ) : null}
-
-      {resty ? (
+      {resty && tab === "overview" ? (
         <section className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-5">
             <h2 className="text-lg font-bold text-foreground">
