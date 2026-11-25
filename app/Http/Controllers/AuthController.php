@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\PamanaAuthUser;
 use App\Models\User;
+use App\Services\ActivityService;
 use App\Services\AuthMethodService;
 use App\Services\JwtService;
 use App\Services\PamanaEmployeeService;
 use App\Support\ApiException;
+use App\Support\AuthUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +22,7 @@ class AuthController extends Controller
         private JwtService $jwt,
         private PamanaEmployeeService $pamana,
         private AuthMethodService $authMethods,
+        private ActivityService $activity,
     ) {}
 
     public function login(Request $request): JsonResponse
@@ -129,8 +133,14 @@ class AuthController extends Controller
             ];
         }
 
+        // A profile saved in Settings is what the form auto-fills (the email stays as is).
+        if ($user->profile_customized_at !== null) {
+            $saved = $this->pamana->requesterProfileFor($user);
+            $profile = [...$saved, 'email' => $profile['email'] !== '' ? $profile['email'] : (string) $user->email];
+        }
+
         return response()->json([
-            'found' => $employee !== null,
+            'found' => $employee !== null || $user->profile_customized_at !== null,
             'source' => $employee !== null ? 'pamana_employees_new' : null,
             'profile' => $profile,
             'values' => \App\Utils\ProfilePlacementFields::buildRequesterProfileAnswerValues($profile),
@@ -157,7 +167,27 @@ class AuthController extends Controller
         $user->name = trim((string) $request->input('name'));
         $user->division = trim((string) $request->input('division'));
         $user->designation = trim((string) $request->input('designation', ''));
+        $user->profile_customized_at = now();
         $user->save();
+
+        // Show the new name on this person's earlier log entries too, then record the change.
+        ActivityLog::query()->where('actor_id', $user->id)->update(['actor_name' => $user->name]);
+        $this->activity->logActivity(
+            new AuthUser(
+                id: (string) $user->id,
+                email: $user->email,
+                name: $user->name,
+                role: $user->role,
+                division: $user->division ?? '',
+                designation: $user->designation ?? '',
+            ),
+            [
+                'action' => 'profile_updated',
+                'entityType' => 'user',
+                'entityId' => (string) $user->id,
+                'summary' => $user->name.' updated their profile ('.$user->division.($user->designation !== '' ? ', '.$user->designation : '').')',
+            ],
+        );
 
         return response()->json(['user' => $this->pamana->enrichPublicUser($user)]);
     }

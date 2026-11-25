@@ -63,7 +63,10 @@ class TicketController extends Controller
     public function assignedMine(Request $request): JsonResponse
     {
         return response()->json([
-            'items' => $this->tickets->listTicketsAssignedToAdmin($this->authUser($request)->id),
+            'items' => $this->tickets->listTicketsAssignedToAdmin(
+                $this->authUser($request)->id,
+                $request->boolean('completed'),
+            ),
         ]);
     }
 

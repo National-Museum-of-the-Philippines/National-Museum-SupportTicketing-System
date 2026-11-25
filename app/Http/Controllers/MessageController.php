@@ -89,6 +89,21 @@ class MessageController extends Controller
         ]);
     }
 
+    /** Delete a private chat for me only: hidden, and its history cleared on my side. */
+    public function destroy(Request $request, string $id): JsonResponse
+    {
+        $this->conversations->hidePrivateConversation($this->authUser($request), $id, true);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function typing(Request $request, string $id): JsonResponse
+    {
+        $this->conversations->notifyTyping($this->authUser($request), $id);
+
+        return response()->json(['ok' => true]);
+    }
+
     public function postMessage(Request $request, string $id): JsonResponse
     {
         $validator = Validator::make($request->all(), [

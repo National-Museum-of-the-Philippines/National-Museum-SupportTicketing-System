@@ -43,7 +43,6 @@ import { Route as ClientMessagesRouteImport } from './routes/client/messages'
 import { Route as ClientLoginRouteImport } from './routes/client/login'
 import { Route as ClientFormsRouteImport } from './routes/client/forms'
 import { Route as ClientForReviewSupervisorRouteImport } from './routes/client/for-review-supervisor'
-import { Route as ClientForReviewRecommendingRouteImport } from './routes/client/for-review-recommending'
 import { Route as ClientForReviewActionOfficerRouteImport } from './routes/client/for-review-action-officer'
 import { Route as ClientFeedbackRouteImport } from './routes/client/feedback'
 import { Route as ClientDashboardRouteImport } from './routes/client/dashboard'
@@ -55,6 +54,8 @@ import { Route as AdminPublishedFormsRouteImport } from './routes/admin/publishe
 import { Route as AdminMessagesRouteImport } from './routes/admin/messages'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminFormsRouteImport } from './routes/admin/forms'
+import { Route as AdminForReviewSupervisorRouteImport } from './routes/admin/for-review-supervisor'
+import { Route as AdminForReviewRecommendingRouteImport } from './routes/admin/for-review-recommending'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
 import { Route as AdminApprovalsRouteImport } from './routes/admin/approvals'
 import { Route as SuperAdminMyRequestsIndexRouteImport } from './routes/super-admin/my-requests/index'
@@ -244,12 +245,6 @@ const ClientForReviewSupervisorRoute =
     path: '/for-review-supervisor',
     getParentRoute: () => ClientRoute,
   } as any)
-const ClientForReviewRecommendingRoute =
-  ClientForReviewRecommendingRouteImport.update({
-    id: '/for-review-recommending',
-    path: '/for-review-recommending',
-    getParentRoute: () => ClientRoute,
-  } as any)
 const ClientForReviewActionOfficerRoute =
   ClientForReviewActionOfficerRouteImport.update({
     id: '/for-review-action-officer',
@@ -306,6 +301,18 @@ const AdminFormsRoute = AdminFormsRouteImport.update({
   path: '/forms',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminForReviewSupervisorRoute =
+  AdminForReviewSupervisorRouteImport.update({
+    id: '/for-review-supervisor',
+    path: '/for-review-supervisor',
+    getParentRoute: () => AdminRoute,
+  } as any)
+const AdminForReviewRecommendingRoute =
+  AdminForReviewRecommendingRouteImport.update({
+    id: '/for-review-recommending',
+    path: '/for-review-recommending',
+    getParentRoute: () => AdminRoute,
+  } as any)
 const AdminDashboardRoute = AdminDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -405,6 +412,8 @@ export interface FileRoutesByFullPath {
   '/user': typeof UserRoute
   '/admin/approvals': typeof AdminApprovalsRoute
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/for-review-recommending': typeof AdminForReviewRecommendingRoute
+  '/admin/for-review-supervisor': typeof AdminForReviewSupervisorRoute
   '/admin/forms': typeof AdminFormsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/messages': typeof AdminMessagesRoute
@@ -416,7 +425,6 @@ export interface FileRoutesByFullPath {
   '/client/dashboard': typeof ClientDashboardRoute
   '/client/feedback': typeof ClientFeedbackRoute
   '/client/for-review-action-officer': typeof ClientForReviewActionOfficerRoute
-  '/client/for-review-recommending': typeof ClientForReviewRecommendingRoute
   '/client/for-review-supervisor': typeof ClientForReviewSupervisorRoute
   '/client/forms': typeof ClientFormsRoute
   '/client/login': typeof ClientLoginRoute
@@ -470,6 +478,8 @@ export interface FileRoutesByTo {
   '/user': typeof UserRoute
   '/admin/approvals': typeof AdminApprovalsRoute
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/for-review-recommending': typeof AdminForReviewRecommendingRoute
+  '/admin/for-review-supervisor': typeof AdminForReviewSupervisorRoute
   '/admin/forms': typeof AdminFormsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/messages': typeof AdminMessagesRoute
@@ -481,7 +491,6 @@ export interface FileRoutesByTo {
   '/client/dashboard': typeof ClientDashboardRoute
   '/client/feedback': typeof ClientFeedbackRoute
   '/client/for-review-action-officer': typeof ClientForReviewActionOfficerRoute
-  '/client/for-review-recommending': typeof ClientForReviewRecommendingRoute
   '/client/for-review-supervisor': typeof ClientForReviewSupervisorRoute
   '/client/forms': typeof ClientFormsRoute
   '/client/login': typeof ClientLoginRoute
@@ -536,6 +545,8 @@ export interface FileRoutesById {
   '/user': typeof UserRoute
   '/admin/approvals': typeof AdminApprovalsRoute
   '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/for-review-recommending': typeof AdminForReviewRecommendingRoute
+  '/admin/for-review-supervisor': typeof AdminForReviewSupervisorRoute
   '/admin/forms': typeof AdminFormsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/messages': typeof AdminMessagesRoute
@@ -547,7 +558,6 @@ export interface FileRoutesById {
   '/client/dashboard': typeof ClientDashboardRoute
   '/client/feedback': typeof ClientFeedbackRoute
   '/client/for-review-action-officer': typeof ClientForReviewActionOfficerRoute
-  '/client/for-review-recommending': typeof ClientForReviewRecommendingRoute
   '/client/for-review-supervisor': typeof ClientForReviewSupervisorRoute
   '/client/forms': typeof ClientFormsRoute
   '/client/login': typeof ClientLoginRoute
@@ -603,6 +613,8 @@ export interface FileRouteTypes {
     | '/user'
     | '/admin/approvals'
     | '/admin/dashboard'
+    | '/admin/for-review-recommending'
+    | '/admin/for-review-supervisor'
     | '/admin/forms'
     | '/admin/login'
     | '/admin/messages'
@@ -614,7 +626,6 @@ export interface FileRouteTypes {
     | '/client/dashboard'
     | '/client/feedback'
     | '/client/for-review-action-officer'
-    | '/client/for-review-recommending'
     | '/client/for-review-supervisor'
     | '/client/forms'
     | '/client/login'
@@ -668,6 +679,8 @@ export interface FileRouteTypes {
     | '/user'
     | '/admin/approvals'
     | '/admin/dashboard'
+    | '/admin/for-review-recommending'
+    | '/admin/for-review-supervisor'
     | '/admin/forms'
     | '/admin/login'
     | '/admin/messages'
@@ -679,7 +692,6 @@ export interface FileRouteTypes {
     | '/client/dashboard'
     | '/client/feedback'
     | '/client/for-review-action-officer'
-    | '/client/for-review-recommending'
     | '/client/for-review-supervisor'
     | '/client/forms'
     | '/client/login'
@@ -733,6 +745,8 @@ export interface FileRouteTypes {
     | '/user'
     | '/admin/approvals'
     | '/admin/dashboard'
+    | '/admin/for-review-recommending'
+    | '/admin/for-review-supervisor'
     | '/admin/forms'
     | '/admin/login'
     | '/admin/messages'
@@ -744,7 +758,6 @@ export interface FileRouteTypes {
     | '/client/dashboard'
     | '/client/feedback'
     | '/client/for-review-action-officer'
-    | '/client/for-review-recommending'
     | '/client/for-review-supervisor'
     | '/client/forms'
     | '/client/login'
@@ -1039,13 +1052,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientForReviewSupervisorRouteImport
       parentRoute: typeof ClientRoute
     }
-    '/client/for-review-recommending': {
-      id: '/client/for-review-recommending'
-      path: '/for-review-recommending'
-      fullPath: '/client/for-review-recommending'
-      preLoaderRoute: typeof ClientForReviewRecommendingRouteImport
-      parentRoute: typeof ClientRoute
-    }
     '/client/for-review-action-officer': {
       id: '/client/for-review-action-officer'
       path: '/for-review-action-officer'
@@ -1121,6 +1127,20 @@ declare module '@tanstack/react-router' {
       path: '/forms'
       fullPath: '/admin/forms'
       preLoaderRoute: typeof AdminFormsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/for-review-supervisor': {
+      id: '/admin/for-review-supervisor'
+      path: '/for-review-supervisor'
+      fullPath: '/admin/for-review-supervisor'
+      preLoaderRoute: typeof AdminForReviewSupervisorRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/for-review-recommending': {
+      id: '/admin/for-review-recommending'
+      path: '/for-review-recommending'
+      fullPath: '/admin/for-review-recommending'
+      preLoaderRoute: typeof AdminForReviewRecommendingRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/dashboard': {
@@ -1248,6 +1268,8 @@ declare module '@tanstack/react-router' {
 interface AdminRouteChildren {
   AdminApprovalsRoute: typeof AdminApprovalsRoute
   AdminDashboardRoute: typeof AdminDashboardRoute
+  AdminForReviewRecommendingRoute: typeof AdminForReviewRecommendingRoute
+  AdminForReviewSupervisorRoute: typeof AdminForReviewSupervisorRoute
   AdminFormsRoute: typeof AdminFormsRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminMessagesRoute: typeof AdminMessagesRoute
@@ -1268,6 +1290,8 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminApprovalsRoute: AdminApprovalsRoute,
   AdminDashboardRoute: AdminDashboardRoute,
+  AdminForReviewRecommendingRoute: AdminForReviewRecommendingRoute,
+  AdminForReviewSupervisorRoute: AdminForReviewSupervisorRoute,
   AdminFormsRoute: AdminFormsRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminMessagesRoute: AdminMessagesRoute,
@@ -1292,7 +1316,6 @@ interface ClientRouteChildren {
   ClientDashboardRoute: typeof ClientDashboardRoute
   ClientFeedbackRoute: typeof ClientFeedbackRoute
   ClientForReviewActionOfficerRoute: typeof ClientForReviewActionOfficerRoute
-  ClientForReviewRecommendingRoute: typeof ClientForReviewRecommendingRoute
   ClientForReviewSupervisorRoute: typeof ClientForReviewSupervisorRoute
   ClientFormsRoute: typeof ClientFormsRoute
   ClientLoginRoute: typeof ClientLoginRoute
@@ -1308,7 +1331,6 @@ const ClientRouteChildren: ClientRouteChildren = {
   ClientDashboardRoute: ClientDashboardRoute,
   ClientFeedbackRoute: ClientFeedbackRoute,
   ClientForReviewActionOfficerRoute: ClientForReviewActionOfficerRoute,
-  ClientForReviewRecommendingRoute: ClientForReviewRecommendingRoute,
   ClientForReviewSupervisorRoute: ClientForReviewSupervisorRoute,
   ClientFormsRoute: ClientFormsRoute,
   ClientLoginRoute: ClientLoginRoute,

@@ -14,6 +14,7 @@ class PokeService
     public function __construct(
         private ConversationService $conversations,
         private RealtimeService $realtime,
+        private PamanaEmployeeService $pamana,
     ) {}
 
     /**
@@ -56,7 +57,7 @@ class PokeService
         $payload = [
             '_id' => (string) $poke->id,
             'fromUserId' => $user->id,
-            'fromUserName' => $user->name,
+            'fromUserName' => $this->displayName(User::query()->find($user->id)) ?: $user->name,
             'fromUserRole' => $user->role,
             'toUserId' => $toUserId,
             'conversationId' => $conversationId,
@@ -85,7 +86,7 @@ class PokeService
                 return [
                     '_id' => (string) $p->id,
                     'fromUserId' => $from ? (string) $from->id : (string) $p->from_user_id,
-                    'fromUserName' => $from?->name ?? 'Someone',
+                    'fromUserName' => $this->displayName($from) ?: 'Someone',
                     'fromUserRole' => $from?->role ?? '',
                     'toUserId' => (string) $p->to_user_id,
                     'conversationId' => $p->conversation_id ? (string) $p->conversation_id : null,
@@ -93,5 +94,15 @@ class PokeService
                 ];
             })
             ->all();
+    }
+
+    /** The name as PAMANA has it (or the one the person saved in Settings). */
+    private function displayName(?User $user): string
+    {
+        if (! $user) {
+            return '';
+        }
+
+        return trim((string) ($this->pamana->enrichPublicUser($user)['name'] ?? '')) ?: (string) $user->name;
     }
 }

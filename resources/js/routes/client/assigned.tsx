@@ -9,6 +9,7 @@ import {
   StatusBadge,
   WorkspacePageHeader,
 } from "@/components/layout/workspace-ui";
+import { AssignedFeedbackPanel } from "@/components/tickets/AssignedFeedbackPanel";
 import { TicketPdfViewerDialog } from "@/components/tickets/TicketPdfViewerDialog";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
@@ -103,6 +104,8 @@ function ClientAssignedRequestsPage() {
           </table>
         </div>
       </DataPanel>
+
+      <AssignedFeedbackPanel slot="client" canQuery={canQuery} />
 
       <TicketPdfViewerDialog
         ticketId={viewTicket?.id ?? null}

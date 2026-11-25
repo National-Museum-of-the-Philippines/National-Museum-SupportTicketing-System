@@ -33,10 +33,6 @@ class TicketService
     public function createTicketFromClient(AuthUser $user, string $formId, array $body): array
     {
         $form = $this->forms->getPublishedForm($formId);
-        $isClient = ! in_array($user->role, ['admin', 'super_admin', 'record_management'], true);
-        if ($isClient && $this->forms->isFormUsed($formId)) {
-            throw new ApiException(409, 'This form was already used and is no longer available');
-        }
         $answers = $body['answers'] ?? [];
         $subject = (string) ($answers['txt_subject'] ?? $answers['subject'] ?? $form['title']);
 
@@ -64,7 +60,7 @@ class TicketService
             $designation = trim((string) $employee['designation']) !== ''
                 ? (string) $employee['designation']
                 : trim((string) ($ticketingUser?->designation ?? $user->designation));
-            $mergedAnswers = array_merge($answers, ProfilePlacementFields::buildRequesterProfileAnswerValues([
+            $profile = [
                 'name' => $employee['name'],
                 'email' => $profileEmail,
                 'division' => $division,
@@ -72,7 +68,12 @@ class TicketService
                 'firstName' => $employee['firstName'],
                 'middleName' => $employee['middleName'],
                 'lastName' => $employee['lastName'],
-            ]));
+            ];
+            // A profile the person saved in Settings is what goes on the form.
+            if ($ticketingUser?->profile_customized_at !== null) {
+                $profile = [...$this->pamana->requesterProfileFor($ticketingUser), 'email' => $profileEmail];
+            }
+            $mergedAnswers = array_merge($answers, ProfilePlacementFields::buildRequesterProfileAnswerValues($profile));
         } else {
             $mergedAnswers = ProfilePlacementFields::mergeRequesterProfileIntoAnswers(
                 $this->pamana->requesterProfileFor(
@@ -917,6 +918,9 @@ class TicketService
             'meta' => ['reason' => $reason],
         ]);
 
+        // A rejected request has nothing left to discuss: close its chat so it leaves Messenger.
+        $this->ticketConversations->setTicketConversationClosedState((string) $ticket->id, true, 'rejected');
+
         $this->notifyTicketChange($actor, $ticket, 'Request '.$ticket->ticket_number.' was rejected');
 
         return $ticket->fresh(['assignees'])->toApiArray();
@@ -1041,12 +1045,17 @@ class TicketService
     /**
      * @return list<array<string, mixed>>
      */
-    public function listTicketsAssignedToAdmin(string $userId): array
+    public function listTicketsAssignedToAdmin(string $userId, bool $completed = false): array
     {
+        // Active work by default; `completed` returns the resolved/closed tickets, which carry the client's feedback.
+        $statuses = $completed
+            ? ['resolved', 'closed']
+            : ['open', 'in_progress', 'pending', 'reopened'];
+
         return Ticket::query()
             ->with('assignees')
             ->whereHas('assignees', fn ($q) => $q->where('users_.id', $userId))
-            ->whereIn('status', ['open', 'in_progress', 'pending', 'reopened'])
+            ->whereIn('status', $statuses)
             ->orderByDesc('updated_at')
             ->get()
             ->map(fn (Ticket $t) => $t->toApiArray())

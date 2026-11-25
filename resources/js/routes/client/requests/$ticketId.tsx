@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { CheckCircle2, Loader2, MessageCircle, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import { api } from "@/lib/api/client";
 import { CLIENT_ASSIGNED, CLIENT_FEEDBACK, CLIENT_REQUESTS } from "@/lib/navigation";
 import { getClientFeedbackUrl } from "@/lib/feedback-config";
 import { useAuth } from "@/lib/auth";
+import { markTicketUpdateSeen } from "@/lib/seen-ticket-updates";
 import {
   ticketCanMarkComplete,
   ticketNeedsFeedback,
@@ -42,6 +43,12 @@ function TicketTrackPage() {
     queryKey: ["my-ticket", ticketId],
     queryFn: () => api.getTicket(ticketId),
   });
+
+  // Opening the request counts as seeing its latest status update.
+  const openedStatus = data?.ticket?.status;
+  useEffect(() => {
+    if (user?.id && openedStatus) markTicketUpdateSeen(user.id, ticketId, openedStatus);
+  }, [user?.id, ticketId, openedStatus]);
 
   const confirm = useMutation({
     mutationFn: (satisfied: boolean) => api.confirmTicket(ticketId, satisfied),
@@ -74,7 +81,8 @@ function TicketTrackPage() {
   });
 
   const feedback = useMutation({
-    mutationFn: () => api.submitFeedback(ticketId, { comment: comment.trim() || undefined }),
+    mutationFn: (rating?: number) =>
+      api.submitFeedback(ticketId, { rating, comment: comment.trim() || undefined }),
     onSuccess: () => {
       toast.success("Feedback recorded — you can now close this request");
       void qc.invalidateQueries({ queryKey: ["my-ticket", ticketId] });
@@ -185,7 +193,7 @@ function TicketTrackPage() {
                     ticket={activeTicket}
                     comment={comment}
                     onCommentChange={setComment}
-                    onConfirm={() => feedback.mutate()}
+                    onConfirm={(rating) => feedback.mutate(rating)}
                     isPending={feedback.isPending}
                   />
                   <p className="mt-4 text-center text-xs text-muted-foreground sm:text-left">

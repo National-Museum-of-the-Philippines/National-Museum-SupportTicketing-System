@@ -128,6 +128,12 @@ export function onRealtimeMessage(slot: PortalSlot, handler: (event: RealtimeMes
   return listen(slot, "message.new", handler);
 }
 
+export type RealtimeTypingEvent = { conversationId: string; userId: string; userName: string };
+
+export function onRealtimeTyping(slot: PortalSlot, handler: (event: RealtimeTypingEvent) => void) {
+  return listen(slot, "message.typing", handler);
+}
+
 export function onRealtimeConversationUpdate(
   slot: PortalSlot,
   handler: (event: RealtimeConversationEvent) => void,

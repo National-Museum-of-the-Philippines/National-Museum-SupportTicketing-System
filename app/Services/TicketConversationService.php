@@ -80,7 +80,7 @@ class TicketConversationService
         return $conv->fresh(['participants']);
     }
 
-    public function setTicketConversationClosedState(string $ticketId, bool $closed): ?Conversation
+    public function setTicketConversationClosedState(string $ticketId, bool $closed, string $reason = 'closed'): ?Conversation
     {
         $conv = Conversation::query()->where('ticket_id', $ticketId)->first();
         if (! $conv) {
@@ -94,7 +94,9 @@ class TicketConversationService
         if ($closed) {
             $this->postTicketThreadSystemMessage(
                 (string) $conv->id,
-                'This request conversation was closed because the client closed the request.',
+                $reason === 'rejected'
+                    ? 'This request conversation was closed because the request was rejected.'
+                    : 'This request conversation was closed because the client closed the request.',
             );
         }
 

@@ -22,6 +22,22 @@ class RealtimeService
     }
 
     /**
+     * "<name> is typing…" for everyone in the chat except the person typing.
+     */
+    public function emitTyping(string $conversationId, string $userId, string $userName): void
+    {
+        $channels = array_values(array_filter(
+            $this->channelsForConversation($conversationId),
+            fn (PrivateChannel $c) => $c->name !== 'private-user.'.$userId,
+        ));
+        $this->send('message.typing', [
+            'conversationId' => $conversationId,
+            'userId' => $userId,
+            'userName' => $userName,
+        ], $channels);
+    }
+
+    /**
      * @param  array{conversationId: string, lastMessageAt: string, lastMessagePreview: string, lastSenderName: string}  $payload
      */
     public function emitConversationUpdate(array $payload): void

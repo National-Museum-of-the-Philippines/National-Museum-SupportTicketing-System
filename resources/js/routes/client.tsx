@@ -2,22 +2,27 @@ import { useUnreadMessages } from "@/lib/messenger-store";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { Inbox, LayoutDashboard, MessageCircle, MessageSquare, Send, FileCheck, ShieldCheck, ClipboardCheck, UserCheck } from "lucide-react";
+import { Inbox, LayoutDashboard, MessageCircle, MessageSquare, Send, ShieldCheck, ClipboardCheck, UserCheck } from "lucide-react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useMessageNotifications } from "@/hooks/use-message-notifications";
 import { useMessageRealtime } from "@/hooks/use-message-realtime";
 import { usePokeNotifications } from "@/hooks/use-poke-notifications";
 import { api } from "@/lib/api/client";
 import { ensurePortalRole } from "@/lib/portal-guard";
-import { assignedPersonnelNotifications, clientTicketNotifications } from "@/lib/notifications";
+import {
+  assignedPersonnelNotifications,
+  clientReviewNotifications,
+  clientTicketNotifications,
+} from "@/lib/notifications";
 import { useLiveNotifications } from "@/lib/live-notifications";
+import { useAuth } from "@/lib/auth";
+import { useSeenTicketUpdates } from "@/lib/seen-ticket-updates";
 import {
   CLIENT_ASSIGNED,
   CLIENT_DASHBOARD,
   CLIENT_FEEDBACK,
   CLIENT_MESSAGES,
   CLIENT_REQUESTS,
-  CLIENT_REVIEW_RECOMMENDING,
   CLIENT_REVIEW_SUPERVISOR,
   CLIENT_REVIEW_ACTION_OFFICER,
   CLIENT_SUBMIT,
@@ -37,22 +42,14 @@ export const Route = createFileRoute("/client")({
 
 function ClientLayout() {
   useMessageRealtime("client");
+  const { user } = useAuth();
+  const seenUpdates = useSeenTicketUpdates(user?.id);
   const liveNotifications = useLiveNotifications("client");
   const pokeNotifications = usePokeNotifications("client");
   const messageNotifications = useMessageNotifications("client");
   const { data: tickets, isLoading: notificationsLoading } = useQuery({
     queryKey: ["my-tickets"],
     queryFn: () => api.myTickets("client"),
-  });
-  const { data: recommendingQueue } = useQuery({
-    queryKey: ["review-recommending"],
-    queryFn: () =>
-      api.listClientReview("recommending", "client").catch(() => ({
-        items: [],
-        total: 0,
-        canReviewRecommending: false,
-        canReviewSupervisor: false,
-      })),
   });
   const { data: supervisorQueue } = useQuery({
     queryKey: ["review-supervisor"],
@@ -84,15 +81,24 @@ function ClientLayout() {
       ...liveNotifications,
       ...messageNotifications,
       ...pokeNotifications,
+      ...clientReviewNotifications(supervisorQueue?.items ?? [], "supervisor", CLIENT_REVIEW_SUPERVISOR),
       ...assignedPersonnelNotifications(assignedTickets?.items ?? [], "/client/requests/$ticketId"),
-      ...clientTicketNotifications(tickets?.items ?? []),
+      ...clientTicketNotifications(tickets?.items ?? [], seenUpdates),
     ],
-    [liveNotifications, messageNotifications, pokeNotifications, assignedTickets?.items, tickets?.items],
+    [
+      liveNotifications,
+      messageNotifications,
+      pokeNotifications,
+      assignedTickets?.items,
+      tickets?.items,
+      supervisorQueue?.items,
+      seenUpdates,
+    ],
   );
   // My Requests badge: only the user's own requests that need action (not every bell notice).
   const actionCount = useMemo(
-    () => clientTicketNotifications(tickets?.items ?? []).length,
-    [tickets?.items],
+    () => clientTicketNotifications(tickets?.items ?? [], seenUpdates).length,
+    [tickets?.items, seenUpdates],
   );
   const feedbackCount = countTicketsNeedingFeedback(tickets?.items ?? []);
 
@@ -122,18 +128,17 @@ function ClientLayout() {
         {
           title: "REQUESTS",
           items: [
-            {
-              to: CLIENT_REVIEW_RECOMMENDING,
-              label: "For Review (Recommending)",
-              icon: FileCheck,
-              badge: recommendingQueue?.total,
-            },
-            {
-              to: CLIENT_REVIEW_SUPERVISOR,
-              label: "For Review (Supervisor)",
-              icon: ShieldCheck,
-              badge: supervisorQueue?.total,
-            },
+            // Only people named as an Immediate Supervisor in PAMANA review here.
+            ...(supervisorQueue?.canReviewSupervisor
+              ? [
+                  {
+                    to: CLIENT_REVIEW_SUPERVISOR,
+                    label: "For Review (Supervisor)",
+                    icon: ShieldCheck,
+                    badge: supervisorQueue.total,
+                  },
+                ]
+              : []),
             {
               to: CLIENT_REVIEW_ACTION_OFFICER,
               label: "For Review (Action Officer)",

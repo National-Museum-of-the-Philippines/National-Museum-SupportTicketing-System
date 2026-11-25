@@ -110,6 +110,16 @@ export function assignedPersonnelNotifications(
   }));
 }
 
+/** Statuses where the client has nothing to do: shown until the request is opened. */
+const INFORMATIONAL_STATUSES = [
+  "pending_approval",
+  "for_client_approval",
+  "for_process_owner",
+  "approved",
+  "rejected",
+  "reopened",
+];
+
 export function clientTicketNotifications(
   tickets: Array<{
     _id: string;
@@ -120,13 +130,17 @@ export function clientTicketNotifications(
     updatedAt?: string;
     createdAt: string;
   }>,
+  /** Keys (`ticketId:status`) of updates the person already opened. */
+  seen: Set<string> = new Set(),
 ): NotificationItem[] {
   const actionable = tickets.filter(
     (t) =>
+      // Real work for the client: always counted until done.
       ticketCanMarkComplete(t) ||
       ticketNeedsFeedback(t) ||
       ticketReadyToClose(t) ||
-      ["pending_approval", "for_process_owner", "for_client_approval", "rejected", "reopened", "approved"].includes(t.status),
+      // Status updates: counted until the request is opened.
+      (INFORMATIONAL_STATUSES.includes(t.status) && !seen.has(`${t._id}:${t.status}`)),
   );
 
   return actionable.slice(0, 8).map((t) => ({
@@ -168,4 +182,27 @@ function clientStatusMessage(
     default:
       return formTitle;
   }
+}
+
+/** Requests waiting on this person as Recommending Officer or Immediate Supervisor. */
+export function clientReviewNotifications(
+  tickets: Array<{
+    _id: string;
+    ticketNumber: string;
+    formTitle: string;
+    creatorName?: string;
+    updatedAt?: string;
+    createdAt: string;
+  }>,
+  stage: "recommending" | "supervisor",
+  to: string,
+): NotificationItem[] {
+  const role = stage === "recommending" ? "Recommending Officer" : "Immediate Supervisor";
+  return tickets.slice(0, 8).map((t) => ({
+    id: `review-${stage}-${t._id}`,
+    title: t.ticketNumber,
+    message: `For your review as ${role} — ${t.formTitle}${t.creatorName ? ` (${t.creatorName})` : ""}`,
+    time: t.updatedAt ?? t.createdAt,
+    to,
+  }));
 }

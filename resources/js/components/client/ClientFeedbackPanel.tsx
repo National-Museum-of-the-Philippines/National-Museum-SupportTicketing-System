@@ -1,4 +1,5 @@
-import { CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, ExternalLink, Loader2, Star } from "lucide-react";
 import type { TicketRecord } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,7 @@ type ClientFeedbackPanelProps = {
   ticket: TicketRecord;
   comment: string;
   onCommentChange: (value: string) => void;
-  onConfirm: () => void;
+  onConfirm: (rating?: number) => void;
   isPending?: boolean;
 };
 
@@ -21,6 +22,8 @@ export function ClientFeedbackPanel({
   isPending = false,
 }: ClientFeedbackPanelProps) {
   const feedbackUrl = getClientFeedbackUrl(ticket);
+  const [rating, setRating] = useState(0);
+  const staff = ticket.assignedTo?.map((u) => u.name).join(", ");
 
   if (!isClientFeedbackConfigured() || !feedbackUrl) {
     return (
@@ -60,9 +63,36 @@ export function ClientFeedbackPanel({
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             Add optional notes for admin, then confirm so you can close this request.
           </p>
+          <div className="mt-3 space-y-1.5">
+            <Label className="text-xs">
+              {staff ? `How was the service of ${staff}?` : "How was the service?"}{" "}
+              <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <div className="flex gap-1" role="radiogroup" aria-label="Rating out of 5">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  role="radio"
+                  aria-checked={rating === n}
+                  aria-label={`${n} out of 5`}
+                  onClick={() => setRating(rating === n ? 0 : n)}
+                  className="rounded p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/40"
+                >
+                  <Star
+                    className={
+                      n <= rating
+                        ? "h-6 w-6 fill-amber-500 text-amber-500"
+                        : "h-6 w-6 text-muted-foreground/50"
+                    }
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="mt-3 space-y-2">
             <Label htmlFor={`feedback-comment-${ticket._id}`} className="text-xs">
-              Notes for admin <span className="font-normal text-muted-foreground">(optional)</span>
+              Comment for the staff and admin <span className="font-normal text-muted-foreground">(optional)</span>
             </Label>
             <Textarea
               id={`feedback-comment-${ticket._id}`}
@@ -76,7 +106,7 @@ export function ClientFeedbackPanel({
           <Button
             size="sm"
             variant="outline"
-            onClick={onConfirm}
+            onClick={() => onConfirm(rating > 0 ? rating : undefined)}
             disabled={isPending}
             className="mt-3 shadow-sm"
           >

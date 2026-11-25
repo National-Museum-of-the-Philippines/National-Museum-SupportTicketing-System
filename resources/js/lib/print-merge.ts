@@ -23,6 +23,14 @@ export function stripDesignerPlacementBlock(template: string): string {
   return template.replace(PLACEMENT_BLOCK, "").trim();
 }
 
+function formatPreviewDate(d: Date): string {
+  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+function formatPreviewTime(d: Date): string {
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
 function sampleValueForField(f: FormField): string {
   switch (f.type) {
     case "dropdown":
@@ -31,14 +39,18 @@ function sampleValueForField(f: FormField): string {
       return f.options && f.options.length > 0 ? f.options.slice(0, 2).join(", ") : "—";
     case "radio":
       return (f.options && f.options[0]) || "—";
+    // Date and time previews follow the day the form is created; clients pick their own values.
     case "date":
-      return "May 14, 2026";
+      return formatPreviewDate(new Date());
     case "time":
-      return "2:30 PM";
-    case "datetime":
-      return "2026-05-14 2:30 PM";
+      return formatPreviewTime(new Date());
+    case "datetime": {
+      const now = new Date();
+      return `${formatPreviewDate(now)} ${formatPreviewTime(now)}`;
+    }
+    // No made-up number: clients type their own when they fill in the form.
     case "number":
-      return "42";
+      return f.label || "Number";
     case "email":
       return "employee@example.gov.ph";
     case "file":

@@ -2,9 +2,10 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { openMessenger } from "@/lib/messenger-store";
+import { bumpUnreadMessages, openMessenger } from "@/lib/messenger-store";
+import { isConversationMuted } from "@/lib/muted-conversations";
+import { clearTyping, setTyping } from "@/lib/typing-store";
 import type { ConversationMessageRecord, ConversationRecord, MentionRecord, PokeRecord } from "@/lib/api/types";
-import { messageRoleLabel } from "@/lib/messages";
 import {
   getMessageSocket,
   onRealtimeConversationUpdate,
@@ -13,6 +14,7 @@ import {
   onRealtimeFormsChanged,
   onRealtimeNotification,
   onRealtimeTicketsChanged,
+  onRealtimeTyping,
   onRealtimePoke,
   type RealtimeConversationEvent,
   type RealtimeMessageEvent,
@@ -148,6 +150,8 @@ export function useMessageRealtime(slot: PortalSlot) {
     getMessageSocket(slot);
 
     const unsubMessage = onRealtimeMessage(slot, (event: RealtimeMessageEvent) => {
+      // Their message arrived, so they are no longer "typing".
+      clearTyping(event.conversationId, event.message.senderId);
       const messagesKey = ["conversation-messages", event.conversationId, slot];
       if (qc.getQueryData(messagesKey)) {
         qc.setQueryData(
@@ -191,6 +195,12 @@ export function useMessageRealtime(slot: PortalSlot) {
 
       const isMentioned = event.message.mentions?.some((mention) => mention.userId === user.id);
 
+      // A muted chat stays quiet; it only shows its own unread count in the chat list.
+      if (isConversationMuted(user.id, event.conversationId) && !isMentioned) {
+        bumpUnreadMessages(event.conversationId);
+        return;
+      }
+
       playMessageSound();
       addMessageNotification(slot, {
         conversationId: event.conversationId,
@@ -213,6 +223,11 @@ export function useMessageRealtime(slot: PortalSlot) {
       }
     });
 
+    const unsubTyping = onRealtimeTyping(slot, (event) => {
+      if (event.userId === user.id) return;
+      setTyping(event.conversationId, event.userId, event.userName);
+    });
+
     const unsubConv = onRealtimeConversationUpdate(slot, (update) => {
       qc.setQueryData(
         ["conversations", slot],
@@ -223,8 +238,7 @@ export function useMessageRealtime(slot: PortalSlot) {
 
     const unsubPoke = onRealtimePoke(slot, (poke: PokeRecord) => {
       addPokeNotification(slot, poke);
-      toast(`${poke.fromUserName} poked you!`, {
-        description: `${messageRoleLabel(poke.fromUserRole)} is waiting for your attention.`,
+      toast(`${poke.fromUserName} poked you`, {
         action: poke.conversationId
           ? {
               label: "Open chat",
@@ -315,6 +329,7 @@ export function useMessageRealtime(slot: PortalSlot) {
     return () => {
       unsubMessage();
       unsubConv();
+      unsubTyping();
       unsubPoke();
       unsubMention();
       unsubNotification();

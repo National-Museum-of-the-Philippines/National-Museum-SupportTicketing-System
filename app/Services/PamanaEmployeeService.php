@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\PamanaAuthUser;
 use App\Models\User;
+use App\Support\ApiException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -347,9 +349,11 @@ class PamanaEmployeeService
     /**
      * @param  array{firstName: string, middleName: string, lastName: string, email: string, division: string, sectionId?: string, designation: string, name: string}|null  $employee
      */
-    public function enrichPublicUser(User $user, ?array $employee = null): array
+    public function enrichPublicUser(User $user, ?array $employee = null, bool $preferSaved = true): array
     {
         $base = $user->toPublicUser();
+        // A profile the person edited in Settings wins over the PAMANA record.
+        $customized = $preferSaved && $user->profile_customized_at !== null;
         $employee ??= $this->findForTicketingUser($user);
 
         if (! $employee) {
@@ -364,10 +368,12 @@ class PamanaEmployeeService
         return [
             'id' => $base['id'],
             'email' => $base['email'],
-            'name' => $employee['name'] !== '' ? $employee['name'] : $base['name'],
+            'name' => ! $customized && $employee['name'] !== '' ? $employee['name'] : $base['name'],
             'role' => $base['role'],
-            'division' => $employee['division'] !== '' ? $employee['division'] : $base['division'],
-            'designation' => $employee['designation'] !== '' ? $employee['designation'] : ($base['designation'] ?? ''),
+            'division' => ! $customized && $employee['division'] !== '' ? $employee['division'] : $base['division'],
+            'designation' => $customized
+                ? ($base['designation'] ?? '')
+                : ($employee['designation'] !== '' ? $employee['designation'] : ($base['designation'] ?? '')),
             'firstName' => $employee['firstName'],
             'middleName' => $employee['middleName'],
             'lastName' => $employee['lastName'],
@@ -381,15 +387,26 @@ class PamanaEmployeeService
     public function requesterProfileFor(User|array $user): array
     {
         $public = is_array($user) ? $user : $this->enrichPublicUser($user);
+        $first = (string) ($public['firstName'] ?? '');
+        $middle = (string) ($public['middleName'] ?? '');
+        $last = (string) ($public['lastName'] ?? '');
+
+        // The person changed their display name in Settings: the form's name fields follow it.
+        if ($user instanceof User && $user->profile_customized_at !== null) {
+            $parts = preg_split('/\s+/', trim((string) ($public['name'] ?? '')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $first = $parts[0] ?? '';
+            $last = count($parts) > 1 ? (string) end($parts) : '';
+            $middle = count($parts) > 2 ? implode(' ', array_slice($parts, 1, -1)) : '';
+        }
 
         return [
             'name' => (string) ($public['name'] ?? ''),
             'email' => (string) ($public['email'] ?? ''),
             'division' => (string) ($public['division'] ?? ''),
             'designation' => (string) ($public['designation'] ?? ''),
-            'firstName' => (string) ($public['firstName'] ?? ''),
-            'middleName' => (string) ($public['middleName'] ?? ''),
-            'lastName' => (string) ($public['lastName'] ?? ''),
+            'firstName' => $first,
+            'middleName' => $middle,
+            'lastName' => $last,
         ];
     }
 
@@ -435,6 +452,17 @@ class PamanaEmployeeService
      */
     public function listStaffInSameSection(User $actor, bool $adminsOnly = false): array
     {
+        // The accounts live in pamana_auth. If it cannot be reached (for example while PAMANA is
+        // being refreshed), never answer "no personnel": serve the last good list, or say so.
+        $cacheKey = 'section-staff:'.$actor->id.':'.($adminsOnly ? 'admins' : 'all');
+        if (! $this->pamanaAuthReachable()) {
+            $stale = Cache::get($cacheKey);
+            if (is_array($stale) && ($stale['users'] ?? []) !== []) {
+                return $stale;
+            }
+            throw new ApiException(503, 'PAMANA is temporarily unavailable. Please try again in a moment.');
+        }
+
         $pamanaUserId = $this->pamanaStaffUserIdForTicketingUser($actor);
         $sectionId = $pamanaUserId !== null ? $this->sectionIdFromStaffinformation($pamanaUserId) : '';
         if ($sectionId === '' && $pamanaUserId !== null) {
@@ -478,11 +506,29 @@ class PamanaEmployeeService
             return $u;
         }, $users);
 
-        return [
+        $result = [
             'users' => $users,
             'sectionId' => $sectionId,
             'sectionName' => $sectionName,
         ];
+        if ($users !== []) {
+            Cache::put($cacheKey, $result, now()->addHours(6));
+        }
+
+        return $result;
+    }
+
+    private function pamanaAuthReachable(): bool
+    {
+        try {
+            DB::connection('pamana_auth')->table('user')->limit(1)->exists();
+
+            return true;
+        } catch (Throwable $e) {
+            Log::warning('pamana_auth is not reachable', ['error' => $e->getMessage()]);
+
+            return false;
+        }
     }
 
     /**

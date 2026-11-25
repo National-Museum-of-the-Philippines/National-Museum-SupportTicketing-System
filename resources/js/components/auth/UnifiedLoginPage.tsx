@@ -19,6 +19,7 @@ export function UnifiedLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [needsCode, setNeedsCode] = useState(false);
   const [code, setCode] = useState("");
+  const [useRecovery, setUseRecovery] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const apiHealth = useApiHealth();
@@ -43,7 +44,7 @@ export function UnifiedLoginPage() {
       const loggedInUser = await login(username, password, needsCode ? code.trim() : undefined);
       if (!loggedInUser) {
         setError(
-          needsCode ? "The authentication code is incorrect." : "Incorrect email or password.",
+          needsCode ? "The authentication code is incorrect." : "Incorrect username or password.",
         );
         return;
       }
@@ -199,9 +200,14 @@ export function UnifiedLoginPage() {
                       name="code"
                       autoComplete="one-time-code"
                       autoFocus
-                      placeholder="6-digit code or recovery code"
+                      inputMode={useRecovery ? "text" : "numeric"}
+                      maxLength={useRecovery ? 11 : 6}
+                      placeholder={useRecovery ? "xxxxx-xxxxx" : "6-digit code"}
                       value={code}
-                      onChange={(e) => setCode(e.target.value)}
+                      onChange={(e) =>
+                        // The app code is exactly 6 digits; a recovery code is 11 characters.
+                        setCode(useRecovery ? e.target.value : e.target.value.replace(/\D/g, "").slice(0, 6))
+                      }
                       disabled={isSubmitting}
                       className={cn(
                         "h-11 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-800 outline-none transition",
@@ -212,7 +218,19 @@ export function UnifiedLoginPage() {
                     />
                   </div>
                   <p className="text-xs text-slate-500">
-                    Enter the code from your authenticator app.
+                    {useRecovery
+                      ? "Enter one of your saved recovery codes."
+                      : "Enter the 6-digit code from your authenticator app."}{" "}
+                    <button
+                      type="button"
+                      className="font-medium text-[#8b1e2d] hover:underline"
+                      onClick={() => {
+                        setUseRecovery((v) => !v);
+                        setCode("");
+                      }}
+                    >
+                      {useRecovery ? "Use authenticator code" : "Use a recovery code"}
+                    </button>
                   </p>
                 </div>
               ) : null}

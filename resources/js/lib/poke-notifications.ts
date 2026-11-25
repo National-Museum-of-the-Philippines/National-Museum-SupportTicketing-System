@@ -6,7 +6,6 @@ import {
   CLIENT_MESSAGES,
   RECORDS_MESSAGES,
 } from "@/lib/navigation";
-import { messageRoleLabel } from "@/lib/messages";
 
 const POKE_EVENT = "nmp-poke-notification";
 
@@ -37,7 +36,7 @@ export function pokeToNotification(slot: PortalSlot, poke: PokeRecord): Notifica
   return {
     id: `poke-${poke._id}`,
     title: `${poke.fromUserName} poked you`,
-    message: `${messageRoleLabel(poke.fromUserRole)} · Tap to open Messages`,
+    message: "Tap to open the chat",
     time: poke.createdAt,
     to: messagesPath(slot),
   };

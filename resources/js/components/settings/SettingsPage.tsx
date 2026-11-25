@@ -39,7 +39,8 @@ export function SettingsPage() {
     onSuccess: ({ user: updated }) => {
       if (activeSlot) {
         const session = getSession(activeSlot);
-        if (session) setSession(activeSlot, { ...session, user: updated }, { notify: false });
+        // Notify so the header and every open page pick up the new name right away.
+        if (session) setSession(activeSlot, { ...session, user: updated });
       }
       toast.success("Profile updated");
     },

@@ -84,8 +84,6 @@ class ConversationService
      */
     public function listConversations(AuthUser $user): array
     {
-        $this->ensureGlobalConversation();
-
         if ($user->role === 'user') {
             $myTickets = Ticket::query()
                 ->where('creator_id', $user->id)
@@ -117,11 +115,8 @@ class ConversationService
 
         $conversations = Conversation::query()
             ->with('participants')
-            ->where(function ($q) use ($user) {
-                $q->where('is_global', true)
-                    ->orWhereHas('participants', fn ($p) => $p->where('users_.id', $user->id));
-            })
-            ->orderByDesc('is_global')
+            ->where('is_global', false)
+            ->whereHas('participants', fn ($p) => $p->where('users_.id', $user->id))
             ->orderByDesc('last_message_at')
             ->orderByDesc('updated_at')
             ->get();
@@ -132,6 +127,17 @@ class ConversationService
             : collect();
 
         $visible = $conversations->filter(function (Conversation $conv) use ($user, $tickets) {
+            // The chat of a rejected request is over, including ones rejected before chats were closed on rejection.
+            if ($conv->ticket_id && $tickets->get($conv->ticket_id)?->status === 'rejected') {
+                return false;
+            }
+            // A private chat the person archived or deleted stays hidden until a newer message arrives.
+            if ($conv->type === 'direct' && ! $conv->ticket_id) {
+                $archivedAt = $this->pivotFor($conv, $user->id)?->archived_at;
+                if ($archivedAt && (! $conv->last_message_at || $conv->last_message_at->lte($archivedAt))) {
+                    return false;
+                }
+            }
             if ($user->role === 'user') {
                 if ($conv->is_closed) {
                     return false;
@@ -246,6 +252,9 @@ class ConversationService
                 'last_sender_name' => '',
             ]);
             $conv->syncParticipants([$user->id, $otherUserId]);
+        } else {
+            // Starting the chat again brings an archived one back (a deleted one starts empty).
+            $conv->participants()->updateExistingPivot($user->id, ['archived_at' => null]);
         }
 
         $otherUser = $this->serializeUser($other);
@@ -309,12 +318,27 @@ class ConversationService
         }
         $this->assertConversationAccess($user, $conversation);
 
+        $clearedAt = $this->pivotFor($conversation, $user->id)?->cleared_at;
+
         return ConversationMessage::query()
             ->where('conversation_id', $conversationId)
+            ->when($clearedAt, fn ($q) => $q->where('created_at', '>', $clearedAt))
             ->orderBy('created_at')
             ->get()
             ->map(fn (ConversationMessage $m) => $m->toSerializedMessage())
             ->all();
+    }
+
+    /** Tell the others in this chat that the person is typing. Nothing is stored. */
+    public function notifyTyping(AuthUser $user, string $conversationId): void
+    {
+        $conversation = Conversation::query()->with('participants')->find($conversationId);
+        if (! $conversation || $conversation->is_closed) {
+            return;
+        }
+        $this->assertConversationAccess($user, $conversation);
+
+        $this->realtime->emitTyping($conversationId, $user->id, $user->name);
     }
 
     /**
@@ -437,6 +461,33 @@ class ConversationService
         }
 
         return $conversation->participantIds();
+    }
+
+    /**
+     * Hide a private chat from this person's list. With $delete the history up to now is
+     * cleared for them as well. The other person's copy is never touched.
+     */
+    public function hidePrivateConversation(AuthUser $user, string $conversationId, bool $delete): void
+    {
+        $conversation = Conversation::query()->with('participants')->find($conversationId);
+        if (! $conversation) {
+            throw new ApiException(404, 'Conversation not found');
+        }
+        $this->assertConversationAccess($user, $conversation);
+        if ($conversation->type !== 'direct' || $conversation->ticket_id || $conversation->is_global) {
+            throw new ApiException(400, 'Only private chats can be archived or deleted');
+        }
+
+        $now = now();
+        $conversation->participants()->updateExistingPivot(
+            $user->id,
+            $delete ? ['archived_at' => $now, 'cleared_at' => $now] : ['archived_at' => $now],
+        );
+    }
+
+    private function pivotFor(Conversation $conversation, string $userId): ?object
+    {
+        return $conversation->participants->first(fn ($p) => (string) $p->id === $userId)?->pivot;
     }
 
     private function directKeyFor(string $a, string $b): string

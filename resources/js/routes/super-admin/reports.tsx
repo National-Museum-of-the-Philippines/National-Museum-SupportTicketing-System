@@ -1,3 +1,4 @@
+import { RatingStars } from "@/components/tickets/RatingStars";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowRight, BarChart3, CheckCircle2, Download, MessageSquare, Ticket } from "lucide-react";
@@ -405,8 +406,8 @@ export function ReportsPage() {
             ) : null}
           </div>
           <div className="flex items-center justify-between border-y border-border/70 bg-muted/40 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <span>Ticket</span>
-            <span>Action</span>
+            <span>Ticket · Client · Staff in charge</span>
+            <span>Rating · Action</span>
           </div>
           {isLoading ? (
             <p className="px-6 py-6 text-sm text-muted-foreground">Loading feedback…</p>
@@ -421,7 +422,19 @@ export function ReportsPage() {
             <ul className="divide-y divide-border/70">
               {feedbackItems.map((t) => (
                 <li key={t._id} className="flex items-center justify-between gap-3 px-6 py-3.5">
-                  <span className="font-mono text-sm text-foreground">{t.ticketNumber}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-foreground">
+                      <span className="font-mono font-semibold">{t.ticketNumber}</span>
+                      <span className="text-muted-foreground"> · {t.creatorName}</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Staff in charge: {t.assignedTo?.map((u) => u.name).join(", ") || "Not assigned"}
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
+                      {t.feedbackComment?.trim() || "No written comment."}
+                    </p>
+                  </div>
+                  <RatingStars rating={t.feedbackRating} className="shrink-0" />
                   <Link
                     to="/admin/requests/$ticketId"
                     params={{ ticketId: t._id }}

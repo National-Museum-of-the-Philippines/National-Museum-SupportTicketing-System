@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from "react";
+import { useAuth } from "@/lib/auth";
+import { useMutedConversations } from "@/lib/muted-conversations";
 import { ADMIN_MESSAGES, CLIENT_MESSAGES, RECORDS_MESSAGES } from "@/lib/navigation";
 import type { PortalSlot } from "@/lib/sessions";
 
@@ -57,6 +59,12 @@ export function bumpUnreadMessages(conversationId: string) {
   });
 }
 
+/** "Mark as unread": the chat shows one unread message until it is opened. */
+export function markConversationUnread(conversationId: string) {
+  if (unreadByConversation[conversationId]) return;
+  setUnread({ ...unreadByConversation, [conversationId]: 1 });
+}
+
 export function clearConversationUnread(conversationId: string) {
   if (!unreadByConversation[conversationId]) return;
   const { [conversationId]: _read, ...rest } = unreadByConversation;
@@ -78,8 +86,10 @@ export function useUnreadByConversation(): Record<string, number> {
 
 /** Total unread across all chats (sidebar badge and launcher). */
 export function useUnreadMessages(): number {
+  const { user } = useAuth();
   const byConversation = useUnreadByConversation();
-  return Object.values(byConversation).reduce((sum, n) => sum + n, 0);
+  const muted = useMutedConversations(user?.id);
+  return Object.entries(byConversation).reduce((sum, [id, n]) => (muted.has(id) ? sum : sum + n), 0);
 }
 
 export function useMessengerState(): MessengerState {

@@ -7,10 +7,12 @@ import {
   ClipboardCheck,
   FileCheck2,
   FilePenLine,
+  FileCheck,
   Inbox,
   LayoutDashboard,
   MessageCircle,
   Send,
+  ShieldCheck,
   Ticket,
   UserCheck,
 } from "lucide-react";
@@ -20,7 +22,12 @@ import { useMessageRealtime } from "@/hooks/use-message-realtime";
 import { usePokeNotifications } from "@/hooks/use-poke-notifications";
 import { api } from "@/lib/api/client";
 import { useLiveNotifications } from "@/lib/live-notifications";
-import { adminApprovalNotifications, adminAssignmentNotifications, assignedPersonnelNotifications } from "@/lib/notifications";
+import {
+  adminApprovalNotifications,
+  adminAssignmentNotifications,
+  assignedPersonnelNotifications,
+  clientReviewNotifications,
+} from "@/lib/notifications";
 import { ensurePortalRole } from "@/lib/portal-guard";
 import { useAdminSession } from "@/lib/use-portal-session";
 import {
@@ -34,6 +41,8 @@ import {
   ADMIN_PUBLISHED_FORMS,
   ADMIN_REPORTS,
   ADMIN_REQUESTS,
+  ADMIN_REVIEW_RECOMMENDING,
+  ADMIN_REVIEW_SUPERVISOR,
   isAdminRole,
 } from "@/lib/navigation";
 
@@ -56,6 +65,19 @@ function AdminLayout() {
   const { data: tickets, isLoading: notificationsLoading } = useQuery({
     queryKey: ["admin-tickets-pending"],
     queryFn: () => api.listTickets({ status: "pending_approval" }, "admin"),
+    enabled: canQuery,
+  });
+
+  // An Admin who is the Recommending Officer / Immediate Supervisor of a section also reviews here.
+  const emptyReview = { items: [], total: 0, canReviewRecommending: false, canReviewSupervisor: false };
+  const { data: recommendingQueue } = useQuery({
+    queryKey: ["review-recommending", "admin"],
+    queryFn: () => api.listClientReview("recommending", "admin").catch(() => emptyReview),
+    enabled: canQuery,
+  });
+  const { data: supervisorQueue } = useQuery({
+    queryKey: ["review-supervisor", "admin"],
+    queryFn: () => api.listClientReview("supervisor", "admin").catch(() => emptyReview),
     enabled: canQuery,
   });
 
@@ -82,11 +104,22 @@ function AdminLayout() {
       ...liveNotifications,
       ...messageNotifications,
       ...pokeNotifications,
+      ...clientReviewNotifications(recommendingQueue?.items ?? [], "recommending", ADMIN_REVIEW_RECOMMENDING),
+      ...clientReviewNotifications(supervisorQueue?.items ?? [], "supervisor", ADMIN_REVIEW_SUPERVISOR),
       ...assignedPersonnelNotifications(assignedTickets?.items ?? [], "/admin/requests/$ticketId"),
       ...assignmentNotifications,
       ...adminApprovalNotifications(tickets?.items ?? []),
     ],
-    [liveNotifications, messageNotifications, pokeNotifications, assignedTickets?.items, tickets?.items, assignmentNotifications],
+    [
+      liveNotifications,
+      messageNotifications,
+      pokeNotifications,
+      assignedTickets?.items,
+      tickets?.items,
+      assignmentNotifications,
+      recommendingQueue?.items,
+      supervisorQueue?.items,
+    ],
   );
 
   const unreadMessages = useUnreadMessages();
@@ -117,6 +150,26 @@ function AdminLayout() {
         {
           title: "REQUESTS",
           items: [
+            ...(recommendingQueue?.canReviewRecommending
+              ? [
+                  {
+                    to: ADMIN_REVIEW_RECOMMENDING,
+                    label: "For Review (Recommending)",
+                    icon: FileCheck,
+                    badge: recommendingQueue.total || undefined,
+                  },
+                ]
+              : []),
+            ...(supervisorQueue?.canReviewSupervisor
+              ? [
+                  {
+                    to: ADMIN_REVIEW_SUPERVISOR,
+                    label: "For Review (Supervisor)",
+                    icon: ShieldCheck,
+                    badge: supervisorQueue.total || undefined,
+                  },
+                ]
+              : []),
             {
               to: ADMIN_APPROVALS,
               label: "Approvals",

@@ -20,6 +20,12 @@ const MAX_SIGNATURE_WIDTH_PCT = 34;
 /** Without a readable template: space kept above / below the mapped point, % of height. */
 const BLIND_ABOVE_PCT = 3.2;
 const BLIND_BELOW_PCT = 1.3;
+/**
+ * A signature never grows past one signature line, even when the template has
+ * light-shaded rows with no printed line between them (the blank area would
+ * otherwise run through several rows and the ink would cover them).
+ */
+const MAX_SIGNATURE_HEIGHT_PCT = BLIND_ABOVE_PCT + BLIND_BELOW_PCT;
 
 const croppedCache = new Map<string, Promise<string | null>>();
 
@@ -131,8 +137,9 @@ function resolveSignatureBox(
       if (probeY <= 0) break;
       const free = measureFreeSlot(map, xPct, probeY, xPct + markerWidthPct);
       if (!free) continue;
-      const topPct = Math.max(free.topPct, rowAbovePct);
-      const bottomPct = Math.min(free.bottomPct, rowBelowPct);
+      // Keep the ink on its own line: bottom stays near the mapped point, height is capped.
+      const bottomPct = Math.min(free.bottomPct, rowBelowPct, yPct + BLIND_BELOW_PCT);
+      const topPct = Math.max(free.topPct, rowAbovePct, bottomPct - MAX_SIGNATURE_HEIGHT_PCT);
       if (bottomPct - topPct < 1) continue;
       return {
         leftPct: xPct,

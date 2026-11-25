@@ -29,6 +29,7 @@ class User extends Model
         'designation',
         'role',
         'active',
+        'profile_customized_at',
     ];
 
     protected $hidden = [
@@ -37,6 +38,7 @@ class User extends Model
 
     protected $casts = [
         'active' => 'boolean',
+        'profile_customized_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

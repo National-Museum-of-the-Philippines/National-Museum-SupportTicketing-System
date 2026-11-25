@@ -361,8 +361,12 @@ export const api = {
       },
       slot,
     ),
-  listAssignedTickets: (slot?: PortalSlot) =>
-    apiFetch<{ items: TicketRecord[] }>(`/api/tickets/assigned/mine`, undefined, slot),
+  listAssignedTickets: (slot?: PortalSlot, completed = false) =>
+    apiFetch<{ items: TicketRecord[] }>(
+      `/api/tickets/assigned/mine${completed ? "?completed=1" : ""}`,
+      undefined,
+      slot,
+    ),
   completeTicketService: (id: string, slot?: PortalSlot) =>
     apiFetch<{ ticket: TicketRecord }>(`/api/tickets/${id}/complete`, { method: "POST" }, slot),
   updateTicketStatus: (id: string, status: TicketStatus, slot?: PortalSlot) =>
@@ -449,6 +453,18 @@ export const api = {
     apiFetch<{ users: MessageableUser[] }>(
       `/api/messages/conversations/${conversationId}/mentionable`,
       undefined,
+      slot,
+    ),
+  sendTyping: (conversationId: string, slot?: PortalSlot) =>
+    apiFetch<{ ok: boolean }>(
+      `/api/messages/conversations/${conversationId}/typing`,
+      { method: "POST" },
+      slot,
+    ),
+  deleteConversation: (conversationId: string, slot?: PortalSlot) =>
+    apiFetch<{ ok: boolean }>(
+      `/api/messages/conversations/${conversationId}`,
+      { method: "DELETE" },
       slot,
     ),
   startDirectConversation: (userId: string, slot?: PortalSlot) =>

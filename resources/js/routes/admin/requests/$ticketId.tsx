@@ -50,7 +50,7 @@ function TicketDetailPage() {
     queryFn: () => api.getTicket(ticketId, "admin"),
     enabled: canQuery,
   });
-  const { data: assigneeData } = useQuery({
+  const { data: assigneeData, isError: assigneeError, refetch: refetchAssignees } = useQuery({
     queryKey: ["assignees", ticketId],
     queryFn: () => api.listAssignees(ticketId),
     enabled: canQuery && Boolean(ticketId),
@@ -309,7 +309,18 @@ function TicketDetailPage() {
                     })
                   ) : (
                     <p className="px-2 py-3 text-sm text-muted-foreground">
-                      {assigneeData?.division
+                      {assigneeError ? (
+                        <>
+                          Could not load the personnel list (PAMANA is unavailable).{" "}
+                          <button
+                            type="button"
+                            className="font-medium text-maroon hover:underline"
+                            onClick={() => void refetchAssignees()}
+                          >
+                            Try again
+                          </button>
+                        </>
+                      ) : assigneeData?.division
                         ? `No active personnel found in ${assigneeData.division}.`
                         : "No personnel found in your section."}
                     </p>
@@ -417,7 +428,18 @@ function TicketDetailPage() {
                       })
                     ) : (
                       <p className="px-2 py-3 text-sm text-muted-foreground">
-                        {assigneeData?.division
+                        {assigneeError ? (
+                          <>
+                            Could not load the personnel list (PAMANA is unavailable).{" "}
+                            <button
+                              type="button"
+                              className="font-medium text-maroon hover:underline"
+                              onClick={() => void refetchAssignees()}
+                            >
+                              Try again
+                            </button>
+                          </>
+                        ) : assigneeData?.division
                           ? `No active personnel found in ${assigneeData.division}.`
                           : "No personnel available for this form's division."}
                       </p>

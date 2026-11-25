@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth";
-import { CLIENT_REQUESTS } from "@/lib/navigation";
+import { ADMIN_REQUESTS, CLIENT_REQUESTS } from "@/lib/navigation";
+import type { PortalSlot } from "@/lib/sessions";
 
 export type ClientReviewStage = "recommending" | "supervisor";
 
@@ -44,16 +45,25 @@ function invalidateReviewQueries(qc: ReturnType<typeof useQueryClient>) {
   void qc.invalidateQueries({ queryKey: ["review-supervisor"] });
   void qc.invalidateQueries({ queryKey: ["review-action-officer"] });
   void qc.invalidateQueries({ queryKey: ["my-tickets"] });
+  void qc.invalidateQueries({ queryKey: ["admin-tickets-pending"] });
+  void qc.invalidateQueries({ queryKey: ["all-tickets"] });
 }
 
-export function ClientStageReviewPage({ stage }: { stage: ClientReviewStage }) {
+/** Review queue for the Recommending Officer / Immediate Supervisor — in the Staff or the Admin portal. */
+export function ClientStageReviewPage({
+  stage,
+  slot = "client",
+}: {
+  stage: ClientReviewStage;
+  slot?: Extract<PortalSlot, "client" | "admin">;
+}) {
   const copy = STAGE_COPY[stage];
   const qc = useQueryClient();
   const { user, sessionReady } = useAuth();
   const canQuery = sessionReady && Boolean(user);
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: [copy.queryKey],
-    queryFn: () => api.listClientReview(stage, "client"),
+    queryKey: slot === "admin" ? [copy.queryKey, "admin"] : [copy.queryKey],
+    queryFn: () => api.listClientReview(stage, slot),
     enabled: canQuery,
   });
   const [rejectId, setRejectId] = useState<string | null>(null);
@@ -68,9 +78,11 @@ export function ClientStageReviewPage({ stage }: { stage: ClientReviewStage }) {
         : "Could not load requests for review.";
 
   const approve = useMutation({
-    mutationFn: (id: string) => api.approveTicket(id, "client"),
-    onSuccess: () => {
-      toast.success(stage === "recommending" ? "Endorsed for supervisor review" : "Approved for Action Officers");
+    mutationFn: (id: string) => api.approveTicket(id, slot),
+    onSuccess: ({ ticket }) => {
+      // With both approvals on, the Recommending Officer hands over to the Immediate Supervisor.
+      const toSupervisor = ticket.status === "for_client_approval";
+      toast.success(toSupervisor ? "Endorsed — now with the Immediate Supervisor" : "Approved — now with the Action Officer");
       invalidateReviewQueries(qc);
     },
     onError: (err: Error) => {
@@ -80,7 +92,7 @@ export function ClientStageReviewPage({ stage }: { stage: ClientReviewStage }) {
 
   const reject = useMutation({
     mutationFn: ({ id, reason: rejectionReason }: { id: string; reason: string }) =>
-      api.rejectTicket(id, rejectionReason, "client"),
+      api.rejectTicket(id, rejectionReason, slot),
     onSuccess: () => {
       toast.success("Request rejected");
       setRejectId(null);
@@ -152,7 +164,7 @@ export function ClientStageReviewPage({ stage }: { stage: ClientReviewStage }) {
                   <tr key={t._id} className="border-t border-border/70">
                     <td className="px-4 py-3.5 sm:px-5">
                       <Link
-                        to="/client/requests/$ticketId"
+                        to={slot === "admin" ? "/admin/requests/$ticketId" : "/client/requests/$ticketId"}
                         params={{ ticketId: t._id }}
                         className="font-medium text-maroon hover:underline"
                       >
@@ -230,8 +242,11 @@ export function ClientStageReviewPage({ stage }: { stage: ClientReviewStage }) {
         </ActionPanel>
       ) : null}
 
-      <Link to={CLIENT_REQUESTS} className="text-sm text-maroon hover:underline">
-        View my requests →
+      <Link
+        to={slot === "admin" ? ADMIN_REQUESTS : CLIENT_REQUESTS}
+        className="text-sm text-maroon hover:underline"
+      >
+        {slot === "admin" ? "View all requests →" : "View my requests →"}
       </Link>
 
       <TicketPdfViewerDialog
@@ -241,7 +256,7 @@ export function ClientStageReviewPage({ stage }: { stage: ClientReviewStage }) {
         onOpenChange={(open) => {
           if (!open) setViewTicket(null);
         }}
-        slot="client"
+        slot={slot}
       />
     </div>
   );

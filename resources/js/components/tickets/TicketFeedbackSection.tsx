@@ -1,6 +1,7 @@
 import { ExternalLink, MessageSquare } from "lucide-react";
 import type { TicketRecord } from "@/lib/api/types";
 import { DataPanel } from "@/components/layout/workspace-ui";
+import { RatingStars } from "@/components/tickets/RatingStars";
 import { getClientFeedbackUrl } from "@/lib/feedback-config";
 
 type TicketFeedbackSectionProps = {
@@ -10,6 +11,7 @@ type TicketFeedbackSectionProps = {
 /** Admin / records view — client feedback after service. */
 export function TicketFeedbackSection({ ticket }: TicketFeedbackSectionProps) {
   const feedbackUrl = getClientFeedbackUrl(ticket);
+  const staff = ticket.assignedTo?.map((u) => u.name).join(", ");
 
   if (ticket.feedbackSubmitted) {
     return (
@@ -19,9 +21,16 @@ export function TicketFeedbackSection({ ticket }: TicketFeedbackSectionProps) {
             <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             Submitted after service completion.
           </div>
-          {ticket.feedbackRating ? (
+          {staff ? (
             <p className="text-sm">
-              <span className="font-medium text-foreground">Rating:</span> {ticket.feedbackRating}/5
+              <span className="font-medium text-foreground">For:</span> {staff}
+            </p>
+          ) : null}
+          {ticket.feedbackRating ? (
+            <p className="flex items-center gap-2 text-sm">
+              <span className="font-medium text-foreground">Rating:</span>
+              <RatingStars rating={ticket.feedbackRating} />
+              <span className="text-muted-foreground">{ticket.feedbackRating}/5</span>
             </p>
           ) : null}
           <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">

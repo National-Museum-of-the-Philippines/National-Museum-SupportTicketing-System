@@ -2,13 +2,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  Bell,
+  BellOff,
   ChevronDown,
   Hand,
   Loader2,
+  Mail,
+  MailOpen,
   MessageCircle,
   Search,
   SquarePen,
   Ticket,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -24,6 +29,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { toggleConversationMuted, useMutedConversations } from "@/lib/muted-conversations";
+import { typingLabel, useTypingByConversation } from "@/lib/typing-store";
 import { MessageBody } from "@/components/messages/MessageBody";
 import { MessageComposer } from "@/components/messages/MessageComposer";
 import { api } from "@/lib/api/client";
@@ -41,6 +48,7 @@ import { groupUsersByRole, messageRoleLabel } from "@/lib/messages";
 import {
   bumpUnreadMessages,
   clearConversationUnread,
+  markConversationUnread,
   closeMessenger,
   openMessenger,
   useMessengerState,
@@ -146,6 +154,11 @@ function MessengerWindow({
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
+  // Chat row whose actions (mark as unread, mute, delete) are slid open.
+  const [swipeOpenId, setSwipeOpenId] = useState<string | null>(null);
+  const muted = useMutedConversations(user?.id);
+  const typingByConversation = useTypingByConversation();
+  const lastTypingSentRef = useRef(0);
   const prevMessageCountRef = useRef(0);
   const prevLastMessageIdRef = useRef<string | null>(null);
 
@@ -209,6 +222,7 @@ function MessengerWindow({
   }, []);
 
   const activeId = view === "thread" ? selectedId : null;
+  const typingNames = activeId ? (typingByConversation[activeId] ?? []) : [];
   const unreadByConversation = useUnreadByConversation();
 
   // Opening a chat marks it as read.
@@ -372,6 +386,34 @@ function MessengerWindow({
     onError: (err: Error) => toast.error(err.message || "Could not send poke"),
   });
 
+  // Let the others in this chat see "is typing…" (at most one signal every 2.5 seconds).
+  const handleDraftChange = (value: string) => {
+    setDraft(value);
+    if (!value.trim() || !activeId) return;
+    const now = Date.now();
+    if (now - lastTypingSentRef.current < 2500) return;
+    lastTypingSentRef.current = now;
+    api.sendTyping(activeId, slot).catch(() => undefined);
+  };
+
+  // Delete a private chat for me only: hidden from my list, my history cleared.
+  const deleteChat = useMutation({
+    mutationFn: (id: string) => api.deleteConversation(id, slot),
+    onSuccess: (_data, id) => {
+      toast.success("Conversation deleted");
+      lastSelectedBySlot.delete(slot);
+      clearConversationUnread(id);
+      if (selectedId === id) {
+        setSelectedId(null);
+        setView("list");
+      }
+      setSwipeOpenId(null);
+      qc.removeQueries({ queryKey: ["conversation-messages", id, slot] });
+      void qc.invalidateQueries({ queryKey: ["conversations", slot] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Could not delete this chat"),
+  });
+
   useEffect(() => {
     const root = scrollRef.current;
     const sentinel = bottomSentinelRef.current;
@@ -498,12 +540,42 @@ function MessengerWindow({
             <div key={group.label}>
               <p className="messenger-list-label">{group.label}</p>
               {group.items.map((conv) => (
-                <ConversationRow
+                                <ConversationRow
                   key={conv._id}
                   conversation={conv}
                   active={conv._id === selectedId}
                   unread={unreadByConversation[conv._id] ?? 0}
+                  muted={muted.has(conv._id)}
+                  typing={typingByConversation[conv._id]}
+                  actionsOpen={swipeOpenId === conv._id}
+                  onActionsOpenChange={(open) => setSwipeOpenId(open ? conv._id : null)}
                   onClick={() => selectConversation(conv._id)}
+                  onToggleUnread={() => {
+                    if ((unreadByConversation[conv._id] ?? 0) > 0) clearConversationUnread(conv._id);
+                    else markConversationUnread(conv._id);
+                    setSwipeOpenId(null);
+                  }}
+                  onToggleMute={() => {
+                    if (!user) return;
+                    const nowMuted = toggleConversationMuted(user.id, conv._id);
+                    toast.success(nowMuted ? "Chat muted" : "Chat unmuted");
+                    setSwipeOpenId(null);
+                  }}
+                  onDelete={
+                    conv.type === "direct" && !conv.isGlobal
+                      ? () => {
+                          if (
+                            window.confirm(
+                              `Delete this conversation with ${conv.title}? It is removed for you only; they keep their copy.`,
+                            )
+                          ) {
+                            deleteChat.mutate(conv._id);
+                          } else {
+                            setSwipeOpenId(null);
+                          }
+                        }
+                      : undefined
+                  }
                 />
               ))}
             </div>
@@ -605,6 +677,16 @@ function MessengerWindow({
             ) : (
               <MessageList messages={messages} currentUserId={user.id} creatorId={creatorId} />
             )}
+            {typingNames.length > 0 ? (
+              <p className="messenger-typing px-1 pb-1 pt-2 text-xs italic text-muted-foreground" aria-live="polite">
+                {typingLabel(typingNames)}
+                <span className="messenger-typing-dots" aria-hidden>
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </p>
+            ) : null}
             <div ref={bottomSentinelRef} className="h-px w-full shrink-0" aria-hidden />
           </div>
 
@@ -633,7 +715,7 @@ function MessengerWindow({
             slot={slot}
             conversationId={activeId}
             value={draft}
-            onChange={setDraft}
+            onChange={handleDraftChange}
             mentionIds={mentionIds}
             onMentionIdsChange={setMentionIds}
             onSubmit={handleSubmit}
@@ -995,57 +1077,207 @@ function relativeShort(iso: string) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+const ACTION_WIDTH = 72;
+
+/**
+* A chat row that slides to the left (touch, mouse drag or two-finger swipe) to show
+* Mark as unread, Mute and Delete, like Messenger.
+*/
 function ConversationRow({
   conversation,
   active,
   unread = 0,
+  muted = false,
+  typing,
+  actionsOpen,
+  onActionsOpenChange,
   onClick,
+  onToggleUnread,
+  onToggleMute,
+  onDelete,
 }: {
   conversation: ConversationRecord;
   active: boolean;
   unread?: number;
+  muted?: boolean;
+  /** Names of the people typing in this chat right now. */
+  typing?: string[];
+  actionsOpen: boolean;
+  onActionsOpenChange: (open: boolean) => void;
   onClick: () => void;
+  onToggleUnread: () => void;
+  onToggleMute: () => void;
+  /** Only private chats can be deleted. */
+  onDelete?: () => void;
 }) {
   const preview = conversation.lastMessagePreview
     ? `${conversation.lastSenderName ? `${conversation.lastSenderName}: ` : ""}${conversation.lastMessagePreview}`
     : conversation.subtitle || "No messages yet";
+  const trayWidth = ACTION_WIDTH * (onDelete ? 3 : 2);
+
+  const [drag, setDrag] = useState<number | null>(null);
+  const start = useRef<{ x: number; y: number; offset: number } | null>(null);
+  const moved = useRef(false);
+  const wheelAcc = useRef(0);
+  const offset = drag ?? (actionsOpen ? -trayWidth : 0);
+
+  const finish = () => {
+    if (drag !== null) onActionsOpenChange(drag < -trayWidth / 2);
+    setDrag(null);
+    start.current = null;
+  };
+
+  const actionClass =
+    "flex shrink-0 flex-col items-center justify-center gap-1 text-[11px] font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white";
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "messenger-conversation-row w-full text-left",
-        active && "messenger-conversation-row--active",
-      )}
-    >
-      <div className="flex items-center gap-3">
-        <ConversationTile conversation={conversation} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="truncate text-sm font-semibold">{conversation.title}</span>
-            {conversation.lastMessageAt ? (
-              <span className="shrink-0 text-[11px] text-muted-foreground">
-                {relativeShort(conversation.lastMessageAt)}
+    <div className="relative overflow-hidden border-b border-border/40">
+      <div className="absolute inset-y-0 right-0 flex" style={{ width: trayWidth }}>
+        <button
+          type="button"
+          className={cn(actionClass, "bg-sky-600")}
+          style={{ width: ACTION_WIDTH }}
+          tabIndex={actionsOpen ? 0 : -1}
+          onClick={onToggleUnread}
+        >
+          {unread > 0 ? <MailOpen className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+          <span className="leading-tight">
+            {unread > 0 ? "Mark as read" : "Mark as unread"}
+          </span>
+        </button>
+        <button
+          type="button"
+          className={cn(actionClass, "bg-slate-500")}
+          style={{ width: ACTION_WIDTH }}
+          tabIndex={actionsOpen ? 0 : -1}
+          onClick={onToggleMute}
+        >
+          {muted ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+          <span>{muted ? "Unmute" : "Mute"}</span>
+        </button>
+        {onDelete ? (
+          <button
+            type="button"
+            className={cn(actionClass, "bg-red-600")}
+            style={{ width: ACTION_WIDTH }}
+            tabIndex={actionsOpen ? 0 : -1}
+            onClick={onDelete}
+          >
+            <Trash2 className="h-4 w-4" />
+            <span>Delete</span>
+          </button>
+        ) : null}
+      </div>
+
+      <div
+        className={cn(
+          "relative bg-card",
+          drag === null && "transition-transform duration-200",
+        )}
+        style={{ transform: `translateX(${offset}px)`, touchAction: "pan-y" }}
+        onPointerDown={(e) => {
+          if (e.pointerType === "mouse" && e.button !== 0) return;
+          start.current = { x: e.clientX, y: e.clientY, offset };
+          moved.current = false;
+        }}
+        onPointerMove={(e) => {
+          const s = start.current;
+          if (!s) return;
+          const dx = e.clientX - s.x;
+          if (!moved.current) {
+            // Ignore small movements and mostly vertical scrolling.
+            if (Math.abs(dx) < 6 || Math.abs(dx) < Math.abs(e.clientY - s.y)) return;
+            moved.current = true;
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }
+          setDrag(Math.min(0, Math.max(-trayWidth, s.offset + dx)));
+        }}
+        onPointerUp={finish}
+        onPointerCancel={finish}
+        onWheel={(e) => {
+          // Two-finger swipe on a trackpad.
+          if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+          wheelAcc.current += e.deltaX;
+          if (wheelAcc.current > 40) {
+            wheelAcc.current = 0;
+            onActionsOpenChange(true);
+          } else if (wheelAcc.current < -40) {
+            wheelAcc.current = 0;
+            onActionsOpenChange(false);
+          }
+        }}
+        onClickCapture={(e) => {
+          // A drag, or a tap while the actions are open, must not open the chat.
+          if (moved.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            moved.current = false;
+          } else if (actionsOpen) {
+            e.preventDefault();
+            e.stopPropagation();
+            onActionsOpenChange(false);
+          }
+        }}
+      >
+        <button
+          type="button"
+          onClick={onClick}
+          className={cn(
+            "messenger-conversation-row w-full text-left",
+            active && "messenger-conversation-row--active",
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <ConversationTile conversation={conversation} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="truncate text-sm font-semibold">
+                  {conversation.title}
+                </span>
+                <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+                  {muted ? (
+                    <BellOff className="h-3 w-3" aria-label="Muted" />
+                  ) : null}
+                  {conversation.lastMessageAt
+                    ? relativeShort(conversation.lastMessageAt)
+                    : null}
+                </span>
+              </div>
+              {conversation.type === "ticket" && conversation.subtitle ? (
+                <p className="truncate text-xs text-muted-foreground/90">
+                  {conversation.subtitle}
+                </p>
+              ) : null}
+              <p
+                className={cn(
+                  "truncate text-xs text-muted-foreground",
+                  unread > 0 && "font-semibold text-foreground",
+                )}
+              >
+                {typing && typing.length > 0 ? (
+                  <span className="italic text-primary">{typingLabel(typing)}</span>
+                ) : (
+                  preview
+                )}
+              </p>
+            </div>
+            {unread > 0 ? (
+              <span
+                className={cn(
+                  "ml-1 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold",
+                  muted
+                    ? "bg-muted-foreground/40 text-foreground"
+                    : "bg-primary text-primary-foreground",
+                )}
+                aria-label={`${unread} unread`}
+              >
+                {unread > 9 ? "9+" : unread}
               </span>
             ) : null}
           </div>
-          {conversation.type === "ticket" && conversation.subtitle ? (
-            <p className="truncate text-xs text-muted-foreground/90">{conversation.subtitle}</p>
-          ) : null}
-          <p className={cn("truncate text-xs text-muted-foreground", unread > 0 && "font-semibold text-foreground")}>
-            {preview}
-          </p>
-        </div>
-        {unread > 0 ? (
-          <span
-            className="ml-1 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground"
-            aria-label={`${unread} unread`}
-          >
-            {unread > 9 ? "9+" : unread}
-          </span>
-        ) : null}
+        </button>
       </div>
-    </button>
+    </div>
   );
 }
 

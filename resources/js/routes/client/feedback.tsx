@@ -35,7 +35,8 @@ function FeedbackTicketCard({ ticketId }: { ticketId: string }) {
   const ticket = data?.ticket;
 
   const feedback = useMutation({
-    mutationFn: () => api.submitFeedback(ticketId, { comment: comment.trim() || undefined }),
+    mutationFn: (rating?: number) =>
+      api.submitFeedback(ticketId, { rating, comment: comment.trim() || undefined }),
     onSuccess: () => {
       toast.success("Feedback recorded — you can now close this request");
       void qc.invalidateQueries({ queryKey: ["my-tickets"] });
@@ -68,7 +69,7 @@ function FeedbackTicketCard({ ticketId }: { ticketId: string }) {
           ticket={ticket}
           comment={comment}
           onCommentChange={setComment}
-          onConfirm={() => feedback.mutate()}
+          onConfirm={(rating) => feedback.mutate(rating)}
           isPending={feedback.isPending}
         />
       </div>

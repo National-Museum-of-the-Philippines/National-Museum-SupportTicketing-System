@@ -102,6 +102,8 @@ Route::middleware(['jwt.auth', 'role:admin,user'])->prefix('messages')->group(fu
     Route::get('/conversations/{id}/mentionable', [MessageController::class, 'mentionable']);
     Route::get('/conversations/{id}/messages', [MessageController::class, 'messages']);
     Route::post('/conversations/{id}/messages', [MessageController::class, 'postMessage']);
+    Route::delete('/conversations/{id}', [MessageController::class, 'destroy']);
+    Route::post('/conversations/{id}/typing', [MessageController::class, 'typing'])->middleware('throttle:120,1');
 });
 
 Route::middleware('jwt.auth')->post('/uploads', [UploadController::class, 'store']);
