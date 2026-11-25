@@ -30,3 +30,7 @@ dist.locked.*/
 
 # User manuals are kept locally, not in git
 /docs/user-manuals/
+
+# UAT documents and their generators are kept local, not in git
+/docs/STS_UAT_*
+/scripts/*uat*
