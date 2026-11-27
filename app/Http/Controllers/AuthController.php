@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\CosUser;
 use App\Models\PamanaAuthUser;
 use App\Models\User;
 use App\Services\ActivityService;
@@ -41,6 +42,15 @@ class AuthController extends Controller
         $password = (string) $request->input('password');
         $account = PamanaAuthUser::attempt($login, $password);
         if (! $account) {
+            // COS staff are not in PAMANA: they sign in with the email and password the Admin gave.
+            $cosProfile = PamanaAuthUser::findByLogin($login) ? null : CosUser::attempt($login, $password);
+            if ($cosProfile) {
+                return response()->json([
+                    'token' => $this->jwt->sign($cosProfile),
+                    'user' => $this->pamana->enrichPublicUser($cosProfile),
+                ]);
+            }
+
             // The reason stays in the log; the response is the same for every case.
             $found = PamanaAuthUser::findByLogin($login);
             Log::notice('Login rejected', [
@@ -169,6 +179,12 @@ class AuthController extends Controller
         $user->designation = trim((string) $request->input('designation', ''));
         $user->profile_customized_at = now();
         $user->save();
+
+        // COS staff: their details are kept in cos_staffs.
+        CosUser::forUser($user)?->staff?->update([
+            'name' => $user->name,
+            'designation' => $user->designation,
+        ]);
 
         // Show the new name on this person's earlier log entries too, then record the change.
         ActivityLog::query()->where('actor_id', $user->id)->update(['actor_name' => $user->name]);

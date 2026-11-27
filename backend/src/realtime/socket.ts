@@ -76,7 +76,8 @@ async function joinUserConversationRooms(
   user: AuthUser,
 ) {
   const conversations = await Conversation.find({
-    $or: [{ isGlobal: true }, { participantIds: user.id }],
+    isGlobal: false,
+    participantIds: user.id,
   });
 
   for (const conv of conversations) {

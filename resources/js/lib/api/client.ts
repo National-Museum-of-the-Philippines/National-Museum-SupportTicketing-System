@@ -1,4 +1,5 @@
 import type {
+  CosUserRecord,
   ActivityRecord,
   ApiUser,
   AuthMethodsStatus,
@@ -546,6 +547,26 @@ export const api = {
       "admin",
     );
   },
+  listCosUsers: () =>
+    apiFetch<{ items: CosUserRecord[]; section: string }>("/api/cos-users", undefined, "admin"),
+  createCosUser: (body: {
+    email: string;
+    name: string;
+    designation: string;
+    password: string;
+    password_confirmation: string;
+  }) =>
+    apiFetch<{ user: CosUserRecord }>(
+      "/api/cos-users",
+      { method: "POST", body: JSON.stringify(body) },
+      "admin",
+    ),
+  setCosUserActive: (userId: string, active: boolean) =>
+    apiFetch<{ user: CosUserRecord }>(
+      `/api/cos-users/${userId}/active`,
+      { method: "PATCH", body: JSON.stringify({ active }) },
+      "admin",
+    ),
   rbacResetMfa: (userId: number) =>
     apiFetch<{ ok: boolean }>(`/api/rbac/employees/${userId}/mfa/reset`, { method: "POST" }, "admin"),
   rbacSyncRoles: (userId: number, roleIds: number[]) =>

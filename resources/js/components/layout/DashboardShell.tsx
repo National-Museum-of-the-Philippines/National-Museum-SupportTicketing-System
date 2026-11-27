@@ -377,6 +377,7 @@ export function DashboardShell({
           </span>
           Settings
         </button>
+        {user?.isCos ? null : (
         <button
           type="button"
           className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
@@ -387,6 +388,7 @@ export function DashboardShell({
           </span>
           Set up MFA
         </button>
+        )}
         <button
           type="button"
           className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-rose-50 hover:text-rose-700"

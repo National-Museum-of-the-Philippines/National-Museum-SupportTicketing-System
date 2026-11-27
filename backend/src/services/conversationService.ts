@@ -154,8 +154,6 @@ export async function listMentionableUsers(user: AuthUser, conversationId: strin
 }
 
 export async function listConversations(user: AuthUser) {
-  await ensureGlobalConversation();
-
   if (user.role === "user") {
     const myTickets = await Ticket.find({
       creatorId: user.id,
@@ -190,9 +188,10 @@ export async function listConversations(user: AuthUser) {
 
   const conversations = await Conversation.find(
     {
-      $or: [{ isGlobal: true }, { participantIds: user.id }],
+      isGlobal: false,
+      participantIds: user.id,
     },
-    { sort: { isGlobal: -1, lastMessageAt: -1, updatedAt: -1 } },
+    { sort: { lastMessageAt: -1, updatedAt: -1 } },
   );
 
   const ticketIds = conversations

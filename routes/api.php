@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CosUserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\FormController;
 use App\Http\Controllers\FormReportController;
@@ -142,4 +143,11 @@ Route::middleware(['jwt.auth', 'role:super_admin'])->prefix('super-admin/errors'
     Route::post('/{id}/resolve', [ErrorMonitorController::class, 'resolve']);
     Route::post('/{id}/reopen', [ErrorMonitorController::class, 'reopen']);
     Route::delete('/{id}', [ErrorMonitorController::class, 'destroy']);
+});
+
+// User Management: COS staff of the Admin's own section (never written to PAMANA).
+Route::middleware(['jwt.auth', 'role:admin'])->prefix('cos-users')->group(function () {
+    Route::get('/', [CosUserController::class, 'index']);
+    Route::post('/', [CosUserController::class, 'store']);
+    Route::patch('/{userId}/active', [CosUserController::class, 'setActive']);
 });

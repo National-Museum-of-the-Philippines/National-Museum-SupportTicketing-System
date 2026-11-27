@@ -47,6 +47,7 @@ import { Route as ClientForReviewActionOfficerRouteImport } from './routes/clien
 import { Route as ClientFeedbackRouteImport } from './routes/client/feedback'
 import { Route as ClientDashboardRouteImport } from './routes/client/dashboard'
 import { Route as ClientAssignedRouteImport } from './routes/client/assigned'
+import { Route as AdminUserManagementRouteImport } from './routes/admin/user-management'
 import { Route as AdminSubmitRequestRouteImport } from './routes/admin/submit-request'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
@@ -266,6 +267,11 @@ const ClientAssignedRoute = ClientAssignedRouteImport.update({
   path: '/assigned',
   getParentRoute: () => ClientRoute,
 } as any)
+const AdminUserManagementRoute = AdminUserManagementRouteImport.update({
+  id: '/user-management',
+  path: '/user-management',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSubmitRequestRoute = AdminSubmitRequestRouteImport.update({
   id: '/submit-request',
   path: '/submit-request',
@@ -421,6 +427,7 @@ export interface FileRoutesByFullPath {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/submit-request': typeof AdminSubmitRequestRoute
+  '/admin/user-management': typeof AdminUserManagementRoute
   '/client/assigned': typeof ClientAssignedRoute
   '/client/dashboard': typeof ClientDashboardRoute
   '/client/feedback': typeof ClientFeedbackRoute
@@ -487,6 +494,7 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/submit-request': typeof AdminSubmitRequestRoute
+  '/admin/user-management': typeof AdminUserManagementRoute
   '/client/assigned': typeof ClientAssignedRoute
   '/client/dashboard': typeof ClientDashboardRoute
   '/client/feedback': typeof ClientFeedbackRoute
@@ -554,6 +562,7 @@ export interface FileRoutesById {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/submit-request': typeof AdminSubmitRequestRoute
+  '/admin/user-management': typeof AdminUserManagementRoute
   '/client/assigned': typeof ClientAssignedRoute
   '/client/dashboard': typeof ClientDashboardRoute
   '/client/feedback': typeof ClientFeedbackRoute
@@ -622,6 +631,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/settings'
     | '/admin/submit-request'
+    | '/admin/user-management'
     | '/client/assigned'
     | '/client/dashboard'
     | '/client/feedback'
@@ -688,6 +698,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/settings'
     | '/admin/submit-request'
+    | '/admin/user-management'
     | '/client/assigned'
     | '/client/dashboard'
     | '/client/feedback'
@@ -754,6 +765,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/settings'
     | '/admin/submit-request'
+    | '/admin/user-management'
     | '/client/assigned'
     | '/client/dashboard'
     | '/client/feedback'
@@ -1080,6 +1092,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientAssignedRouteImport
       parentRoute: typeof ClientRoute
     }
+    '/admin/user-management': {
+      id: '/admin/user-management'
+      path: '/user-management'
+      fullPath: '/admin/user-management'
+      preLoaderRoute: typeof AdminUserManagementRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/submit-request': {
       id: '/admin/submit-request'
       path: '/submit-request'
@@ -1277,6 +1296,7 @@ interface AdminRouteChildren {
   AdminReportsRoute: typeof AdminReportsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminSubmitRequestRoute: typeof AdminSubmitRequestRoute
+  AdminUserManagementRoute: typeof AdminUserManagementRoute
   AdminMyRequestsTicketIdRoute: typeof AdminMyRequestsTicketIdRoute
   AdminRbacPermissionsRoute: typeof AdminRbacPermissionsRoute
   AdminRbacRolesRoute: typeof AdminRbacRolesRoute
@@ -1299,6 +1319,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminReportsRoute: AdminReportsRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminSubmitRequestRoute: AdminSubmitRequestRoute,
+  AdminUserManagementRoute: AdminUserManagementRoute,
   AdminMyRequestsTicketIdRoute: AdminMyRequestsTicketIdRoute,
   AdminRbacPermissionsRoute: AdminRbacPermissionsRoute,
   AdminRbacRolesRoute: AdminRbacRolesRoute,

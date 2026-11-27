@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\CosStaff;
+use App\Models\CosUser;
 use App\Models\PamanaAuthUser;
 use App\Models\User;
 use App\Support\ApiException;
@@ -41,6 +43,11 @@ class PamanaEmployeeService
      */
     public function findForTicketingUser(User $user): ?array
     {
+        // COS staff are not in PAMANA; their profile is the one in the ticketing database.
+        if (CosUser::forUser($user)) {
+            return null;
+        }
+
         $email = strtolower(trim((string) $user->email));
         $account = $this->authAccountForTicketingUser($user);
 
@@ -352,6 +359,9 @@ class PamanaEmployeeService
     public function enrichPublicUser(User $user, ?array $employee = null, bool $preferSaved = true): array
     {
         $base = $user->toPublicUser();
+        if (CosUser::forUser($user)) {
+            return [...$base, 'firstName' => '', 'middleName' => '', 'lastName' => '', 'isCos' => true];
+        }
         // A profile the person edited in Settings wins over the PAMANA record.
         $customized = $preferSaved && $user->profile_customized_at !== null;
         $employee ??= $this->findForTicketingUser($user);
@@ -450,6 +460,23 @@ class PamanaEmployeeService
      *
      * @return array{users: list<array{_id: string, name: string, email: string, division: string}>, sectionId: string, sectionName: string}
      */
+    /**
+     * The person's PAMANA section (read only).
+     *
+     * @return array{id: string, name: string}|null
+     */
+    public function sectionOf(User $user): ?array
+    {
+        $pamanaUserId = $this->pamanaStaffUserIdForTicketingUser($user);
+        $sectionId = $pamanaUserId !== null ? $this->sectionIdFromStaffinformation($pamanaUserId) : '';
+        if ($sectionId === '' && $pamanaUserId !== null) {
+            $sectionId = $this->sectionIdForPamanaUser($pamanaUserId);
+        }
+        $name = $sectionId !== '' ? $this->sectionName($sectionId) : '';
+
+        return $sectionId !== '' && $name !== '' ? ['id' => $sectionId, 'name' => $name] : null;
+    }
+
     public function listStaffInSameSection(User $actor, bool $adminsOnly = false): array
     {
         // The accounts live in pamana_auth. If it cannot be reached (for example while PAMANA is
@@ -468,6 +495,7 @@ class PamanaEmployeeService
         if ($sectionId === '' && $pamanaUserId !== null) {
             $sectionId = $this->sectionIdForPamanaUser($pamanaUserId);
         }
+        $sectionId = CosUser::forUser($actor)?->staff?->section_id ?? $sectionId;
         $sectionName = $sectionId !== '' ? $this->sectionName($sectionId) : '';
 
         if ($sectionId === '') {
@@ -492,6 +520,25 @@ class PamanaEmployeeService
             $mapped['_sortLast'] = mb_strtolower(trim((string) ($row->last_name ?? '')));
             $mapped['_sortFirst'] = mb_strtolower(trim((string) ($row->first_name ?? '')));
             $users[] = $mapped;
+        }
+
+        if (! $adminsOnly) {
+            $cosStaff = CosStaff::query()->with('account.profile')->where('section_id', $sectionId)->where('active', true)->get();
+            foreach ($cosStaff as $cos) {
+                $member = $cos->account?->profile;
+                if (! $member || ! $member->active || isset($seen[(string) $member->id])) {
+                    continue;
+                }
+                $words = preg_split('/\s+/', trim((string) $member->name)) ?: [''];
+                $users[] = [
+                    '_id' => (string) $member->id,
+                    'name' => $member->name,
+                    'email' => $member->email,
+                    'division' => $sectionName,
+                    '_sortLast' => mb_strtolower((string) end($words)),
+                    '_sortFirst' => mb_strtolower((string) $words[0]),
+                ];
+            }
         }
 
         usort($users, function ($a, $b) {
@@ -627,6 +674,10 @@ class PamanaEmployeeService
 
     private function pamanaStaffUserIdForTicketingUser(User $user): ?string
     {
+        if (CosUser::forUser($user)) {
+            return null;
+        }
+
         $account = $this->authAccountForTicketingUser($user);
         if ($account) {
             return (string) $account->id;
@@ -826,6 +877,8 @@ class PamanaEmployeeService
         if ($sectionId === '' && $pamanaUserId !== null) {
             $sectionId = $this->sectionIdForPamanaUser($pamanaUserId);
         }
+        // COS staff: the section of the Admin who added them.
+        $sectionId = CosUser::forUser($user)?->staff?->section_id ?? $sectionId;
 
         $recommendingOfficer = null;
         $supervisor = null;

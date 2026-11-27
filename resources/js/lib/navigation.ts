@@ -24,6 +24,7 @@ export const ADMIN_MY_REQUESTS = "/admin/my-requests";
 export const ADMIN_MY_REQUESTS_SUBMIT = "/admin/submit-request";
 export const ADMIN_ASSIGNED = "/admin/assigned";
 export const ADMIN_REPORTS = "/admin/reports";
+export const ADMIN_USER_MANAGEMENT = "/admin/user-management";
 export const ADMIN_MESSAGES = "/admin/messages";
 export const ADMIN_SETTINGS = "/admin/settings";
 

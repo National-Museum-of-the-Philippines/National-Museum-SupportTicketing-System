@@ -10,6 +10,21 @@ export type ApiUser = {
   firstName?: string;
   middleName?: string;
   lastName?: string;
+  /** COS staff added by an Admin: not in PAMANA. */
+  isCos?: boolean;
+};
+
+export type CosUserRecord = {
+  userId: string;
+  /** Sign-in name, firstname.lastname. */
+  username: string;
+  email: string;
+  name: string;
+  designation: string;
+  division: string;
+  role: string;
+  active: boolean;
+  createdAt?: string | null;
 };
 
 export type FormStatus = "draft" | "pending_review" | "published" | "disapproved";

@@ -112,10 +112,18 @@ export function SettingsPage() {
           </form>
         </ActionPanel>
 
-        <ActionPanel title="Password" description="Your sign-in password is your PAMANA password.">
+        <ActionPanel
+          title="Password"
+          description={
+            user?.isCos
+              ? "Your password was set by your section's Admin."
+              : "Your sign-in password is your PAMANA password."
+          }
+        >
           <p className="text-sm text-muted-foreground">
-            This portal signs you in with your PAMANA account and cannot change its password.
-            Change your password in PAMANA, then use the new password here.
+            {user?.isCos
+              ? "Sign in with your email and that password. It cannot be changed or reset in this portal."
+              : "This portal signs you in with your PAMANA account and cannot change its password. Change your password in PAMANA, then use the new password here."}
           </p>
         </ActionPanel>
       </div>

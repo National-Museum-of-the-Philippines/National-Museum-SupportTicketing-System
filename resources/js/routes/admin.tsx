@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Ticket,
   UserCheck,
+  UserPlus,
 } from "lucide-react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useMessageNotifications } from "@/hooks/use-message-notifications";
@@ -43,6 +44,7 @@ import {
   ADMIN_REQUESTS,
   ADMIN_REVIEW_RECOMMENDING,
   ADMIN_REVIEW_SUPERVISOR,
+  ADMIN_USER_MANAGEMENT,
   isAdminRole,
 } from "@/lib/navigation";
 
@@ -138,6 +140,7 @@ function AdminLayout() {
             { to: ADMIN_DASHBOARD, label: "Dashboard", icon: LayoutDashboard },
             { to: ADMIN_REPORTS, label: "Reports", icon: BarChart3 },
             { to: ADMIN_MESSAGES, label: "Messages", icon: MessageCircle, badge: unreadMessages },
+            { to: ADMIN_USER_MANAGEMENT, label: "User Management", icon: UserPlus },
           ],
         },
         {
